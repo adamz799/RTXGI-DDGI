@@ -24,3 +24,7 @@ samples/test-harness/data/gltf/sponza/Sponza.cache
 samples/test-harness/data/gltf/tunnel/*.cache
 !samples/test-harness/data/gltf/two-rooms
 samples/test-harness/data/gltf/two-rooms/*.cache
+Majercik2019Irradiance.pdf
+majercik21dynamic.pdf
+docs/2007.14394v1.pdf
+.DS_Store

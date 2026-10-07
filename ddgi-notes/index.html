@@ -1,0 +1,4452 @@
+<title>DDGI 原理讲义</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,500&display=swap">
+
+<style>
+:root {
+  --ground:       #F3F5F8;
+  --surface:      #FFFFFF;
+  --surface-2:    #FAFBFC;
+  --ink:          #131923;
+  --ink-soft:     #5A6572;
+  --ink-faint:    #8C97A5;
+  --line:         #E0E5EB;
+  --line-strong:  #C8D1DB;
+  --accent:       #A85B00;
+  --accent-wash:  #FBF1E0;
+  --accent-line:  #E9C994;
+  --on-accent:    #FFFFFF;
+
+  --font-body: "Archivo", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-math: "Newsreader", "Songti SC", "Source Han Serif SC", Georgia, serif;
+
+  --measure: 740px;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #0E1218;
+    --surface:     #161B23;
+    --surface-2:   #1B212B;
+    --ink:         #E5EAF1;
+    --ink-soft:    #949FAD;
+    --ink-faint:   #6B7787;
+    --line:        #242C37;
+    --line-strong: #38424F;
+    --accent:      #EFA63A;
+    --accent-wash: #241B0C;
+    --accent-line: #4B3717;
+    --on-accent:   #1A1205;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #0E1218;
+  --surface:     #161B23;
+  --surface-2:   #1B212B;
+  --ink:         #E5EAF1;
+  --ink-soft:    #949FAD;
+  --ink-faint:   #6B7787;
+  --line:        #242C37;
+  --line-strong: #38424F;
+  --accent:      #EFA63A;
+  --accent-wash: #241B0C;
+  --accent-line: #4B3717;
+  --on-accent:   #1A1205;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--measure); margin-inline: auto; padding-inline: 20px; }
+.main { padding-block: 0 110px; }
+
+/* ---------- sticky bar ---------- */
+.bar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+}
+.bar-inner { padding-block: 9px 11px; }
+.bar-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 14px; margin-bottom: 8px;
+}
+.bar-title {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar-title .sep { color: var(--ink-faint); font-weight: 400; }
+.bar-title .cur { color: var(--ink-soft); font-weight: 400; }
+.bar-count {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-soft);
+  font-variant-numeric: tabular-nums; white-space: nowrap; flex: none;
+}
+.bar-count b { color: var(--accent); font-weight: 600; }
+.track { height: 3px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.fill {
+  height: 100%; width: 0; border-radius: 999px; background: var(--accent);
+  transition: width .3s cubic-bezier(.4,0,.2,1);
+}
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+
+/* ---------- hero ---------- */
+.hero { padding-block: 56px 0; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px;
+}
+h1 {
+  font-size: clamp(30px, 6vw, 41px); line-height: 1.14; font-weight: 700;
+  letter-spacing: -.022em; margin: 0 0 18px; text-wrap: balance;
+}
+.lead { margin: 0; font-size: 16.5px; color: var(--ink-soft); max-width: 58ch; }
+
+code {
+  font-family: var(--font-mono); font-size: .87em; font-weight: 500;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- toc ---------- */
+.toc { margin-block: 38px 0; border-top: 1px solid var(--line); padding-top: 18px; }
+.toc-label {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint);
+  display: block; margin-bottom: 12px;
+}
+.toc-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  gap: 1px 18px;
+}
+.toc-list a {
+  display: flex; gap: 9px; align-items: baseline;
+  padding: 5px 0; text-decoration: none; color: var(--ink-soft);
+  font-size: 13.5px; line-height: 1.45; transition: color .13s;
+}
+.toc-list a:hover { color: var(--accent); }
+.toc-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toc-list .n {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint);
+  flex: none; font-variant-numeric: tabular-nums; padding-top: 1px;
+}
+
+/* ---------- part ---------- */
+.part-head { padding-block: 76px 0; scroll-margin-top: 72px; }
+.part-head .part-kicker {
+  display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; color: var(--accent); margin-bottom: 8px;
+}
+.part-head h2 {
+  font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2;
+  margin: 0 0 12px; text-wrap: balance;
+}
+.part-head p {
+  margin: 0; font-size: 15px; line-height: 1.68; color: var(--ink-soft); max-width: 62ch;
+}
+.part-head::after {
+  content: ""; display: block; margin-top: 26px; height: 2px;
+  background: linear-gradient(90deg, var(--accent) 0 56px, var(--line) 56px 100%);
+}
+.toc-part {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; color: var(--accent); margin: 0 0 10px;
+}
+.toc-list + .toc-part { margin-top: 22px; }
+
+/* ---------- chapter ---------- */
+.ch { padding-block: 56px 0; scroll-margin-top: 72px; }
+.ch-head { margin-bottom: 20px; }
+.ch-num {
+  display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; color: var(--accent); margin-bottom: 8px;
+}
+.ch h2 {
+  font-size: 24px; font-weight: 700; letter-spacing: -.017em;
+  line-height: 1.26; margin: 0; text-wrap: balance;
+}
+.ch p { margin: 0 0 15px; }
+.ch p:last-child { margin-bottom: 0; }
+.ch h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -.005em; margin: 28px 0 10px; }
+.ch h4 {
+  font-size: 14.5px; font-weight: 600; color: var(--ink-soft);
+  letter-spacing: -.003em; margin: 22px 0 9px;
+}
+.ch ul, .ch ol { margin: 0 0 15px; padding-left: 20px; }
+.ch li { margin-bottom: 7px; }
+.ch li:last-child { margin-bottom: 0; }
+.ch b { font-weight: 700; }
+
+blockquote {
+  margin: 18px 0; padding: 13px 18px;
+  border-left: 3px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--ink-soft); font-size: 14.5px; line-height: 1.68;
+}
+blockquote p { margin: 0 0 10px; }
+blockquote p:last-child { margin-bottom: 0; }
+
+.note-box {
+  margin: 18px 0; padding: 14px 17px;
+  border: 1px solid var(--accent-line); border-left-width: 3px;
+  background: var(--accent-wash); border-radius: var(--radius);
+  font-size: 14.5px; line-height: 1.68;
+}
+.note-box p { margin: 0 0 9px; }
+.note-box p:last-child { margin-bottom: 0; }
+.note-box .tag {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--accent);
+  display: block; margin-bottom: 6px;
+}
+
+.src {
+  font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--ink-faint); margin: 8px 0 0;
+}
+
+/* ---------- math ---------- */
+.fx { font-family: var(--font-math); font-size: 1.16em; line-height: 1.5; }
+.fx i, .v { font-style: italic; }
+.math {
+  display: block; text-align: center;
+  font-family: var(--font-math); font-size: 1.2em; line-height: 1.6;
+  margin: 20px 0; padding: 14px 10px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow-x: auto;
+}
+.math .v { font-style: italic; }
+.frac {
+  display: inline-flex; flex-direction: column; vertical-align: middle;
+  text-align: center; margin: 0 .22em; font-size: .93em; line-height: 1.3;
+}
+.frac > .n { border-bottom: 1px solid currentColor; padding: 0 .34em .07em; }
+.frac > .d { padding: .07em .34em 0; }
+.op { font-style: normal; }
+
+pre {
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.62;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 13px 15px; margin: 16px 0;
+  overflow-x: auto;
+}
+pre .c { color: var(--ink-faint); }
+
+/* ---------- table ---------- */
+.tbl-scroll { overflow-x: auto; margin: 18px 0; }
+table { border-collapse: collapse; width: 100%; min-width: 440px; font-size: 13.5px; }
+th, td {
+  text-align: left; padding: 8px 16px 8px 0;
+  border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.58;
+}
+th {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap;
+}
+tr:last-child td { border-bottom: none; }
+td.mono, th.mono { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- self test ---------- */
+.selftest {
+  display: grid; grid-template-columns: 21px 1fr; gap: 13px;
+  margin-top: 28px; padding: 15px 16px;
+  border: 1px solid var(--line); border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius); background: var(--surface);
+  cursor: pointer; transition: border-color .14s, background .14s;
+}
+.selftest:hover { border-color: var(--line-strong); border-left-color: var(--accent); }
+.selftest.is-done { border-left-color: var(--accent); background: var(--accent-wash); }
+.selftest.is-done .st-q { color: var(--ink-faint); }
+.selftest.is-done .st-a { color: var(--ink-faint); }
+.st-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+  display: block; margin-bottom: 5px;
+}
+.st-q { font-size: 15px; font-weight: 600; line-height: 1.55; margin: 0; }
+.st-a { font-size: 13.5px; color: var(--ink-soft); margin: 6px 0 0; line-height: 1.64; }
+
+/* ---------- checkbox ---------- */
+.cb {
+  appearance: none; -webkit-appearance: none;
+  width: 19px; height: 19px; margin: 2px 0 0;
+  border: 1.5px solid var(--line-strong); border-radius: 5px;
+  background: var(--surface); cursor: pointer;
+  display: grid; place-content: center; transition: background .14s, border-color .14s;
+}
+.cb::after {
+  content: ""; width: 10px; height: 5.5px;
+  border-left: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent);
+  transform: rotate(-45deg) scale(0); transition: transform .14s; margin-top: -3px;
+}
+.cb:checked { background: var(--accent); border-color: var(--accent); }
+.cb:checked::after { transform: rotate(-45deg) scale(1); }
+.cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cb, .cb::after, .selftest { transition: none; } }
+
+/* ---------- diagram ---------- */
+.fig { margin: 26px 0; }
+.fig-scroll {
+  overflow-x: auto; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); padding: 16px 14px;
+}
+.diagram { display: block; width: 100%; min-width: 620px; height: auto; }
+.diagram text { font-family: var(--font-mono); fill: var(--ink); }
+.diagram .box { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .store { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .flow { stroke: var(--ink-faint); stroke-width: 1.25; fill: none; }
+.diagram .t { font-size: 11.5px; font-weight: 600; }
+.diagram .s { font-size: 10px; fill: var(--ink-soft); }
+.diagram .band { font-size: 10px; font-weight: 500; fill: var(--ink-soft); letter-spacing: .07em; }
+.diagram .al { font-size: 10px; fill: var(--ink-soft); }
+.diagram .sheet     { fill: var(--surface);   stroke: var(--line-strong); stroke-width: 1; }
+.diagram .sheet-dim { fill: var(--surface-2); stroke: var(--line);        stroke-width: 1; }
+.diagram .cell      { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .cell-hi   { fill: var(--accent-wash); stroke: var(--accent);    stroke-width: 1.5; }
+.diagram .lead      { stroke: var(--accent); stroke-width: 1; fill: none; opacity: .5; }
+.diagram .zoom-out  { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .zoom-in   { fill: var(--accent-wash); stroke: var(--accent-line); stroke-width: 1; }
+.diagram .octa      { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; }
+.diagram.narrow     { min-width: 0; max-width: 340px; margin-inline: auto; }
+.diagram.sm         { min-width: 0; max-width: 240px; margin-inline: auto; }
+.diagram.md         { min-width: 0; max-width: 400px; margin-inline: auto; }
+.diagram.lg         { min-width: 0; max-width: 580px; margin-inline: auto; }
+.diagram .pt        { fill: var(--ink); }
+.diagram .pt-dim    { fill: var(--ink); opacity: .3; }
+.diagram .disc      { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+.diagram .band-ln   { stroke: var(--accent); stroke-width: 1; opacity: .5; }
+.diagram .band-fill { fill: var(--accent); opacity: .1; }
+.diagram .wall      { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .probe     { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .ray       { stroke: var(--ink-faint); stroke-width: 1; }
+.diagram .move      { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.diagram .ghost     { fill: none; stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 3 3; }
+.diagram .ah        { fill: var(--accent); }
+.diagram .ahf       { fill: var(--ink-faint); }
+.diagram .lamp      { fill: var(--accent); }
+.diagram .dot       { fill: var(--accent); }
+.diagram .dot-n     { fill: var(--ink-soft); }
+.diagram .ray-d     { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.diagram .ray-i     { stroke: var(--ink-soft); stroke-width: 1.4; fill: none; }
+.diagram .ray-x     { stroke: var(--ink-faint); stroke-width: 1.2; fill: none; stroke-dasharray: 4 4; }
+.diagram .ray-f     { stroke: var(--line-strong); stroke-width: 1; fill: none; }
+.diagram .curve     { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.diagram .ahA       { fill: var(--accent); }
+.diagram .ahN       { fill: var(--ink-soft); }
+.diagram .ahF       { fill: var(--ink-faint); }
+figcaption { margin-top: 11px; font-size: 13.5px; color: var(--ink-soft); }
+
+.doc-img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: #FFFFFF;
+}
+.fig-scroll .doc-img { min-width: 560px; }
+.doc-img.fit { width: auto; max-width: 100%; margin-inline: auto; }
+.pair {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0;
+}
+.pair figure { margin: 0; }
+.pair .doc-img { min-width: 0; }
+.pair figcaption { margin-top: 8px; font-size: 12.5px; line-height: 1.55; }
+@media (max-width: 560px) { .pair { grid-template-columns: 1fr; } }
+.lightbox-hint { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-top: 6px; }
+
+/* ---------- toolbar ---------- */
+.tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-block: 34px 0; padding-block: 0 16px; border-bottom: 1px solid var(--line);
+}
+.btn {
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  color: var(--ink-soft); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  padding: 7px 13px; cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+.btn[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.btn[data-armed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-left: auto; }
+
+/* ---------- pitfalls ---------- */
+.pitfalls { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pitfalls li {
+  display: grid; grid-template-columns: 22px 1fr; gap: 12px;
+  padding: 13px 0; font-size: 14.5px; color: var(--ink-soft); line-height: 1.66;
+  border-bottom: 1px solid var(--line); margin: 0;
+}
+.pitfalls li:last-child { border-bottom: none; }
+.pitfalls li::before {
+  content: "—"; font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint);
+}
+.pitfalls b { color: var(--ink); font-weight: 600; }
+
+footer {
+  margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.85; color: var(--ink-faint);
+}
+
+.sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+[hidden] { display: none !important; }
+
+@media (max-width: 520px) {
+  .wrap { padding-inline: 16px; }
+  .hero { padding-block: 38px 0; }
+  body { font-size: 15px; line-height: 1.72; }
+  .ch h2 { font-size: 21px; }
+  .math { font-size: 1.06em; padding-inline: 4px; }
+  .selftest { padding-inline: 13px; }
+}
+</style>
+
+<div class="bar">
+  <div class="wrap bar-inner">
+    <div class="bar-top">
+      <span class="bar-title">DDGI 原理讲义<span class="sep"> · </span><span class="cur" id="curCh">尚未开始</span></span>
+      <span class="bar-count"><b id="doneCount">0</b> / <span id="totalCount">0</span> · <span id="pct">0%</span></span>
+    </div>
+    <div class="track" id="pbar" role="progressbar" aria-labelledby="pbar-label"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="fill" id="fill"></div>
+    </div>
+    <span class="sr" id="pbar-label">学习进度</span>
+  </div>
+</div>
+
+<div class="wrap main">
+
+  <header class="hero">
+    <p class="eyebrow">RTXGI-DDGI · 本地仓库 v1.3</p>
+    <h1>DDGI 原理讲义</h1>
+    <p class="lead">
+      从全局光照的问题出发，逐步推导到 DDGI 的完整实现。
+      假定读者没有光线追踪或渲染的前置知识，所需内容在正文中给出。
+      文中数值均标注来源；作者自行计算的部分单独注明。
+    </p>
+  </header>
+
+  <nav class="toc">
+    <span class="toc-label">目录</span>
+    <p class="toc-part">第一部分 · 理论</p>
+    <ul class="toc-list">
+      <li><a href="#ch-0"><span class="n">00</span><span>间接光照</span></a></li>
+      <li><a href="#ch-1"><span class="n">01</span><span>路径追踪的开销</span></a></li>
+      <li><a href="#ch-2"><span class="n">02</span><span>间接光的低频性质</span></a></li>
+      <li><a href="#ch-3"><span class="n">03</span><span>采样点存储的内容</span></a></li>
+      <li><a href="#ch-4"><span class="n">04</span><span>探针数据的获取</span></a></li>
+      <li><a href="#ch-5"><span class="n">05</span><span>球面参数化：八面体映射</span></a></li>
+      <li><a href="#ch-6"><span class="n">06</span><span>探针网格与插值</span></a></li>
+      <li><a href="#ch-7"><span class="n">07</span><span>漏光问题</span></a></li>
+      <li><a href="#ch-8"><span class="n">08</span><span>距离图与遮挡判断</span></a></li>
+      <li><a href="#ch-9"><span class="n">09</span><span>遮挡权重：Chebyshev 不等式</span></a></li>
+    </ul>
+    <p class="toc-part">第二部分 · 工程</p>
+    <ul class="toc-list">
+      <li><a href="#ch-10"><span class="n">10</span><span>显存组织与 UV 换算</span></a></li>
+      <li><a href="#ch-11"><span class="n">11</span><span>时间累积</span></a></li>
+      <li><a href="#ch-12"><span class="n">12</span><span>完整流程</span></a></li>
+      <li><a href="#ch-13"><span class="n">13</span><span>三项工程优化</span></a></li>
+      <li><a href="#ch-14"><span class="n">14</span><span>仓库文档的阅读顺序</span></a></li>
+      <li><a href="#ch-15"><span class="n">15</span><span>实验</span></a></li>
+      <li><a href="#ch-16"><span class="n">16</span><span>常见误区</span></a></li>
+    </ul>
+  </nav>
+
+  <div class="tools">
+    <button class="btn" id="filterBtn" type="button" aria-pressed="false">只看未完成</button>
+    <button class="btn" id="resetBtn" type="button">重置进度</button>
+    <span class="hint" id="hint"></span>
+  </div>
+
+  <!-- ==================== 第一部分 · 理论 ==================== -->
+  <header class="part-head" id="part-1">
+    <span class="part-kicker">第一部分</span>
+    <h2>理论</h2>
+    <p>
+      从一个采样点要存储什么开始，依次回答：这个量是什么、怎么求出来、
+      怎么参数化到二维、怎么在探针之间重建、以及可见性如何判断。
+      全部结论只依赖球面几何与蒙特卡洛估计，不涉及 GPU 资源。
+    </p>
+  </header>
+
+  <!-- ================= 00 ================= -->
+  <section class="ch" id="ch-0" data-chapter="00 · 间接光照">
+    <div class="ch-head">
+      <span class="ch-num">第 00 章</span>
+      <h2>问题：间接光照</h2>
+    </div>
+
+    <p>
+      渲染一个像素，即求从该表面点沿视线方向射出的光量。表面自身不发光，
+      射出的是它反射的光，所以需要先确定该点接收到的光量。
+    </p>
+
+    <p>接收到的光分为两类：</p>
+    <ul>
+      <li><b>直接光</b>：由光源直接照射。</li>
+      <li><b>间接光</b>：由其他表面反射而来。</li>
+    </ul>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 232" role="img" aria-label="房间剖面上，地板上的点 P 接收到的光。一条直线从光源直达 P，是直接光；三条折线从光源出发先打到墙面或天花板、反射后再到达 P，是间接光。">
+<defs><marker id="ahD" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+<marker id="ahI" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahN" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="box" x="60" y="44" width="520" height="156" rx="2"/>
+<path class="ray-i" d="M150,72 L580,96 L360,200" marker-end="url(#ahI)"/>
+<path class="ray-i" d="M150,72 L478,44 L360,200" marker-end="url(#ahI)"/>
+<path class="ray-i" d="M150,72 L60,152 L360,200" marker-end="url(#ahI)"/>
+<path class="ray-d" d="M150,72 L360,200" marker-end="url(#ahD)"/>
+<circle class="dot-n" cx="580" cy="96" r="3.5"/><circle class="dot-n" cx="478" cy="44" r="3.5"/><circle class="dot-n" cx="60" cy="152" r="3.5"/>
+<circle class="lamp" cx="150" cy="72" r="8"/>
+<circle class="dot" cx="360" cy="200" r="5"/>
+<text class="s" x="126" y="60">光源</text>
+<text class="t" x="372" y="204">P</text>
+<text class="al" x="196" y="118">直接光</text>
+
+<text class="al" x="424" y="132">间接光</text>
+<text class="al" x="60" y="222">P 接收到的光里，直接来自光源的只是一个方向；其余都经过至少一次反射</text>
+</svg>
+      </div>
+      <figcaption>
+        房间剖面上点 <span class="fx v">P</span> 接收到的光。橙色直线是<b>直接光</b>；
+        三条灰色折线是<b>间接光</b> —— 光从光源出发，先打到墙面或天花板，
+        反射之后才到达 <span class="fx v">P</span>。折线的转折点即反射点，
+        绕行越远，到达时携带的能量越少。
+      </figcaption>
+    </figure>
+
+    <p>
+      直接光的计算方式是自表面点向光源投射一条光线，根据是否被遮挡判定明暗。
+      单次光线求交即可完成。
+    </p>
+
+    <p>
+      间接光则不然。要计算地板从墙面接收的光量，需要先知道墙面上每一点接收的光量；
+      而墙面的光又来自地板、天花板，以及其他所有表面之间的相互反射。
+    </p>
+
+    <p>这是一个递归问题，没有直接解法。</p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram md" viewBox="0 0 420 250" role="img" aria-label="地板、墙面、天花板三个面的循环依赖：每一面接收到的光量都取决于其他两面接收到的光量，形成一个没有起点的环。">
+<defs><marker id="ahR" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahN" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="box" x="50" y="186" width="110" height="42" rx="5"/>
+<text class="s" x="105" y="211" text-anchor="middle">地板</text>
+<rect class="box" x="260" y="186" width="110" height="42" rx="5"/>
+<text class="s" x="315" y="211" text-anchor="middle">墙面</text>
+<rect class="box" x="155" y="44" width="110" height="42" rx="5"/>
+<text class="s" x="210" y="69" text-anchor="middle">天花板</text>
+<path class="ray-i" d="M164,207 L252,207" marker-end="url(#ahR)"/>
+<path class="ray-i" d="M330,182 L285,92" marker-end="url(#ahR)"/>
+<path class="ray-i" d="M190,88 L128,180" marker-end="url(#ahR)"/>
+<text class="al" x="210" y="146" text-anchor="middle">互为输入</text>
+<text class="al" x="210" y="164" text-anchor="middle">没有起点</text>
+<text class="al" x="50" y="244">每一面接收到的光量，都取决于其他面接收到的光量</text>
+</svg>
+      </div>
+      <figcaption>
+        三个面之间的光量互为输入。地板的间接光来自墙面与天花板，
+        而墙面与天花板的光又来自地板 —— 环上没有哪一面可以"先算出来"。
+        这正是间接光必须递归求解的原因。
+      </figcaption>
+    </figure>
+
+    <div class="selftest" data-id="st-0">
+      <input type="checkbox" class="cb" id="cb-st-0">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明直接光与间接光的区别，以及间接光为何构成递归。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 01 ================= -->
+  <section class="ch" id="ch-1" data-chapter="01 · 路径追踪的开销">
+    <div class="ch-head">
+      <span class="ch-num">第 01 章</span>
+      <h2>路径追踪的开销</h2>
+    </div>
+
+    <p>
+      离线渲染采用路径追踪求解该递归：自相机投射一条光线击中表面后，随机选取半球方向继续追踪，
+      多次弹射直至命中光源，累加沿途的光量。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 240" role="img" aria-label="路径追踪：相机射出的主光线击中表面后，向随机方向弹射。不同路径走向完全不同，有的最终命中光源，有的没有命中。">
+<defs>
+<marker id="ahP" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+<marker id="ahM" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+</defs>
+<path class="ray-f" d="M48,188 H584"/><path class="ray-f" d="M48,48 H584"/><path class="ray-f" d="M584,48 V188"/>
+<circle class="lamp" cx="410" cy="66" r="9"/>
+<text class="al" x="386" y="42">光源</text>
+<rect class="box" x="26" y="102" width="34" height="30" rx="4"/>
+<text class="al" x="18" y="152">相机</text>
+<path class="ray-i" d="M60,117 L250,188" marker-end="url(#ahM)"/>
+<text class="al" x="118" y="146">主光线</text>
+<path class="ray-d" d="M250,188 L410,66" marker-end="url(#ahP)"/>
+<path class="ray-i" d="M250,188 L540,150 L410,66" marker-end="url(#ahM)"/>
+<path class="ray-x" d="M250,188 L340,48 L150,48" marker-end="url(#ahM)"/>
+<circle class="dot" cx="250" cy="188" r="4.5"/>
+<text class="al" x="262" y="212">第一次命中</text>
+<text class="al" x="424" y="118">命中光源</text>
+<text class="al" x="150" y="30">未命中光源，本次采样贡献为 0</text>
+<text class="al" x="48" y="226">同一像素射出的每一条路径走向都不同，结果差别极大</text>
+</svg>
+      </div>
+      <figcaption>
+        路径追踪。相机射出的主光线第一次命中表面后，向随机方向继续弹射。
+        同一像素的每条路径走向都不同：橙色路径很快命中光源，
+        灰色路径多绕一次后命中，虚线路径两次弹射都未命中光源、本次贡献为 0。
+      </figcaption>
+    </figure>
+
+    <p>
+      该方法的估计量是无偏的，但单条路径只是全部可能路径中的一次采样，
+      其结果与该点的期望值之间方差极大。通常需要数百至数千条路径求平均，图像才能收敛。
+    </p>
+
+    <p>
+      离线渲染单帧可耗时数小时，这一代价可以接受。实时渲染的单帧预算约为 16 毫秒，
+      两者相差约六个数量级。
+    </p>
+
+    <p>因此实时渲染需要一条不同的路径：不精确求解，而是以可控的误差换取速度。</p>
+
+    <div class="selftest" data-id="st-1">
+      <input type="checkbox" class="cb" id="cb-st-1">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明路径追踪的方差来源，以及实时与离线的算力差距。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 ================= -->
+  <section class="ch" id="ch-2" data-chapter="02 · 低频性质">
+    <div class="ch-head">
+      <span class="ch-num">第 02 章</span>
+      <h2>间接光的低频性质</h2>
+    </div>
+
+    <p>先考虑一个几何事实：常见的墙面材质是漫反射的。</p>
+
+    <p>
+      一束光射到漫反射表面上，会向各个方向均匀散射。这意味着桌面上一点接收到的间接光
+      来自整面墙，而非墙上某个确定的点。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 300" role="img" aria-label="上排对比两种表面：漫反射表面把入射光散射到整个半球，光滑表面只沿一个方向反射。下排是对应情况下沿表面的亮度剖面：漫反射平滑，光滑表面出现尖峰。">
+<defs>
+<marker id="ahS" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+<marker id="ahT" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahN" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+</defs>
+<text class="t" x="34" y="22">漫反射表面</text>
+<text class="t" x="330" y="22">光滑表面</text>
+<circle class="lamp" cx="30" cy="66" r="6"/>
+<text class="al" x="16" y="52">入射光</text>
+<circle class="lamp" cx="326" cy="66" r="6"/>
+<text class="al" x="312" y="52">入射光</text>
+<line class="ray-i" x1="150" y1="120" x2="56.1" y2="100" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="63.4" y2="78.7" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="75.4" y2="59.6" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="91.6" y2="43.8" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="111" y2="32.3" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="132.5" y2="25.6" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="155" y2="24.1" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="177.3" y2="28" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="198" y2="36.9" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="216.1" y2="50.4" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="230.5" y2="67.7" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="240.5" y2="88" marker-end="url(#ahT)"/>
+<line class="ray-i" x1="150" y1="120" x2="245.5" y2="110" marker-end="url(#ahT)"/>
+<path class="ray-d" d="M36,66 L150,120" marker-end="url(#ahS)"/>
+<path class="ray-f" d="M54,120 H246"/>
+<text class="al" x="54" y="176">向各方向均匀散射</text>
+<path class="ray-d" d="M332,66 L420,120" marker-end="url(#ahS)"/>
+<path class="ray-d" d="M420,120 L520,66" marker-end="url(#ahS)"/>
+<path class="ray-f" d="M324,120 H516"/>
+<text class="al" x="324" y="176">只沿一个方向反射</text>
+<text class="al" x="34" y="206">沿表面的亮度</text>
+<path class="ray-f" d="M54,262 H246"/>
+<path class="curve" d="M54,262 C90,232 120,228 150,228 C180,228 210,232 246,262"/>
+<text class="al" x="54" y="286">平滑，无突变</text>
+<path class="ray-f" d="M324,262 H516"/>
+<path class="curve" d="M324,262 C360,260 400,258 420,214 C440,258 480,260 516,262"/>
+<text class="al" x="324" y="286">出现尖峰，含高频成分</text>
+<path class="lead" d="M32,196 H568"/>
+</svg>
+      </div>
+      <figcaption>
+        上排：漫反射表面把入射光散射到整个半球，光滑表面只沿一个方向反射。
+        下排：对应的表面亮度剖面。漫反射给出平滑曲线，光滑表面给出尖峰 ——
+        高频成分由此产生。常见的墙面与地面材质接近前者，
+        这正是间接光在空间上低频的原因。
+      </figcaption>
+    </figure>
+
+    <p>
+      因此在空间上，间接光的分布是平滑的：不存在高频细节，只有缓慢变化的亮度梯度。
+    </p>
+
+    <p>
+      既然被求解的函数本身平滑，就没有必要逐像素精确求解。可以用稀疏的采样点记录该函数，
+      在采样点之间插值。
+    </p>
+
+    <blockquote>
+      <p>
+        一个类比：测量房间的温度分布，不需要在每一个点放置温度计。
+        放置若干温度计，其余位置插值即可 —— 前提是温度在空间上平滑变化。
+      </p>
+    </blockquote>
+
+    <div class="note-box">
+      <span class="tag">说明</span>
+      <p>
+        「稀疏采样 + 插值」并非 DDGI 提出。基于预计算辐照度探针的方法
+        （Enlighten、Unity、Unreal Engine 中均有实现）早已采用这一思路。
+      </p>
+      <p>
+        DDGI 的贡献在于使该思路适用于<b>动态</b>场景 —— 即探针数据不必预计算，
+        可以在运行时更新。这是第 07、08 章的内容。
+      </p>
+      <p class="src">来源：docs/Algorithms.md</p>
+    </div>
+
+    <div class="selftest" data-id="st-2">
+      <input type="checkbox" class="cb" id="cb-st-2">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明间接光为何是低频信号，以及该性质为何允许稀疏采样。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 ================= -->
+  <section class="ch" id="ch-3" data-chapter="03 · 采样点存储的内容">
+    <div class="ch-head">
+      <span class="ch-num">第 03 章</span>
+      <h2>采样点存储的内容</h2>
+    </div>
+
+    <p>
+      设空间中存在一个采样点 <span class="fx v">P</span>。若有一表面经过
+      <span class="fx v">P</span>，需要确定它接收到的光量。
+    </p>
+
+    <p>
+      该问题没有唯一答案，因为答案取决于表面的朝向。同一位置，
+      法线朝左的墙面与法线朝上的地板接收到的光量不同：前者看不到天花板与灯具，后者可以看到。
+    </p>
+
+    <p>因此单个采样点不能只存储一个数值。它需要记录的是：</p>
+
+    <blockquote>
+      <p>
+        在 <span class="fx v">P</span> 点，法线取各个方向时，分别接收多少光。
+      </p>
+    </blockquote>
+
+    <p>这是一个定义在球面上的函数。物理量名称为 <b>irradiance（辐照度）</b>：</p>
+
+    <div class="math">
+      <span class="v">E</span>(<span class="v">P</span>, <b>n</b>) =
+      <span class="op">∫</span><sub>Ω</sub>
+      <span class="v">L</span>(<span class="v">P</span>, <span class="v">ω</span>)
+      (<b>n</b> · <span class="v">ω</span>) <span class="op">d</span><span class="v">ω</span>
+    </div>
+
+    <p>各项含义：</p>
+    <ul>
+      <li>
+        <span class="fx v">ω</span> 为入射方向，积分范围为整个上半球，
+        记为 <span class="fx">∫<sub>Ω</sub></span>。
+      </li>
+      <li>
+        <span class="fx v">L</span>(<span class="fx v">P</span>, <span class="fx v">ω</span>)
+        为自 <span class="fx v">ω</span> 方向入射的光强，称为 <b>radiance（辐亮度）</b>。
+      </li>
+      <li>
+        (<b>n</b> · <span class="fx v">ω</span>) 即 cos <span class="fx v">θ</span>，为入射角的余弦项。
+      </li>
+      <li>积分含义为：将上半球各方向的光按入射角余弦加权后求和。</li>
+    </ul>
+
+    <h3>余弦项的作用</h3>
+    <p>
+      光线斜射到表面上时，单位面积接收的能量更少。一束截面固定的光正对表面时形成圆形光斑，
+      斜射时同一束光被拉长为椭圆，覆盖更大面积，因此单位面积上的能量密度降低。
+      余弦项即描述这一效应。
+    </p>
+
+    <h3>两个量的区别</h3>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th></th><th>radiance <i>L</i></th><th>irradiance <i>E</i></th></tr>
+        </thead>
+        <tbody>
+          <tr><td>定义</td><td>沿一条光线的光强</td><td>一点接收的光量总和</td></tr>
+          <tr><td>方向性</td><td>沿光线方向</td><td>不沿方向，但依赖法线</td></tr>
+          <tr><td class="mono">单位</td><td class="mono">W/(m²·sr)</td><td class="mono">W/m²</td></tr>
+          <tr><td>来源</td><td>光线追踪直接给出</td><td>需对 radiance 积分</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      光线追踪的结果始终是 radiance。DDGI 所做的是把 radiance 积分成 irradiance 并存储，
+      供后续着色查询。
+    </p>
+
+    <div class="selftest" data-id="st-3">
+      <input type="checkbox" class="cb" id="cb-st-3">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明 radiance 与 irradiance 的区别，以及探针为何必须存储球面函数。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 ================= -->
+  <section class="ch" id="ch-4" data-chapter="04 · 探针数据的获取">
+    <div class="ch-head">
+      <span class="ch-num">第 04 章</span>
+      <h2>探针数据的获取</h2>
+    </div>
+
+    <p>
+      探针存储的球面函数不是直接观测得到的 —— 它由探针自身投射光线，再把结果积分而来。
+      本章说明这个过程：光线如何选取、返回值是什么量、以及如何从这些量得到第 03 章定义的辐照度。
+    </p>
+
+    <h3>从探针投射光线</h3>
+
+    <p>
+      每个探针沿球面上一组方向投射光线，每条光线有两种结果：
+    </p>
+    <ul>
+      <li>命中物体：得到该点的 radiance 与命中距离。</li>
+      <li>未命中：取天空色，距离记为无穷。</li>
+    </ul>
+
+    <p>
+      这组方向由<b>球面斐波那契序列</b>（spherical Fibonacci）给出，
+      目标是在球面上尽量均匀地放置 <span class="fx v">N</span> 个点。
+      均匀程度直接决定估计量的方差：分布不均时，某些方向被反复采样，
+      另一些方向几乎没有采样。
+    </p>
+
+    <h4>经纬度网格为何不可用</h4>
+
+    <p>
+      最自然的做法是按极角与方位角各取等分，即经纬度网格。但角度等分不等于面积等分。
+      极角接近 0 或 π 时，相同的方位角间隔对应的球面弧长按 sin&thinsp;θ 收缩，
+      点于是向两极堆积。
+    </p>
+
+    <p>用最近邻角距可以量化这一差异。在球面上各取 180 个方向：</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>取点方式</th><th>最近邻角距最小值</th><th>最大值</th><th>最大 / 最小</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>经纬度网格</td><td class="num">3.11°</td><td class="num">15.00°</td><td class="num">4.8</td></tr>
+          <tr><td>球面斐波那契</td><td class="num">13.23°</td><td class="num">14.88°</td><td class="num">1.1</td></tr>
+        </tbody>
+      </table>
+      <p class="src">数值为作者按两种取点方式计算</p>
+    </div>
+
+    <p>
+      理想情况下每个点的最近邻距离都相同。球面斐波那契把这一差距压到 1.1 倍以内，
+      经纬度网格则相差近 5 倍。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram md" viewBox="0 0 400 214" role="img" aria-label="两个球面各取 180 个方向。左图按经纬度网格取点，两极密集、赤道稀疏；右图按球面斐波那契取点，整个球面疏密一致。">
+<text class="band" x="24" y="18">同样是 180 个方向</text>
+<circle class="disc" cx="112" cy="104" r="76"/>
+<circle class="pt-dim" cx="104.1" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="104.1" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="135.3" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="135.3" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="104.7" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="104.7" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="133.7" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="133.7" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="74.3" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="74.3" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="76.9" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="76.9" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="105.7" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="105.7" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="130.6" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="130.6" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="162.4" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="162.4" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="81.9" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="81.9" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="159" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="159" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="107.2" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="107.2" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="152.3" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="152.3" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="51" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="51" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="126.3" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="126.3" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="55.2" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="55.2" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="88.9" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="88.9" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="63.2" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="63.2" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="143" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="143" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="180.8" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="180.8" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="109" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="109" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="176.1" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="176.1" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="121" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="121" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="74.6" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="74.6" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="97.5" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="97.5" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="167.1" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="167.1" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="131.5" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="131.5" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="154.3" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="154.3" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="88.5" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="88.5" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="38.3" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="38.3" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="43.3" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="43.3" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="53" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="53" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="138.6" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="138.6" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="111" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="111" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="66.7" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="66.7" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="115.1" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="115.1" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="107" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="107" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="118.6" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="118.6" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="83.6" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="83.6" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="104" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="104" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="121.1" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="121.1" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="102.3" cy="179.3" r="1.2"/>
+<circle class="pt-dim" cx="102.3" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="121.9" cy="28.7" r="1.2"/>
+<circle class="pt-dim" cx="141.1" cy="33.8" r="1.2"/>
+<circle class="pt-dim" cx="158.3" cy="43.7" r="1.2"/>
+<circle class="pt-dim" cx="172.3" cy="57.7" r="1.2"/>
+<circle class="pt-dim" cx="182.2" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="187.3" cy="94.1" r="1.2"/>
+<circle class="pt-dim" cx="187.3" cy="113.9" r="1.2"/>
+<circle class="pt-dim" cx="182.2" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="172.3" cy="150.3" r="1.2"/>
+<circle class="pt-dim" cx="158.3" cy="164.3" r="1.2"/>
+<circle class="pt-dim" cx="141.1" cy="174.2" r="1.2"/>
+<circle class="pt-dim" cx="121.9" cy="179.3" r="1.2"/>
+<circle class="pt" cx="102.3" cy="28.7" r="1.7"/>
+<circle class="pt" cx="102.3" cy="179.3" r="1.7"/>
+<circle class="pt" cx="121.1" cy="28.7" r="1.7"/>
+<circle class="pt" cx="121.1" cy="179.3" r="1.7"/>
+<circle class="pt" cx="104" cy="28.7" r="1.7"/>
+<circle class="pt" cx="104" cy="179.3" r="1.7"/>
+<circle class="pt" cx="83.6" cy="33.8" r="1.7"/>
+<circle class="pt" cx="83.6" cy="174.2" r="1.7"/>
+<circle class="pt" cx="118.6" cy="28.7" r="1.7"/>
+<circle class="pt" cx="118.6" cy="179.3" r="1.7"/>
+<circle class="pt" cx="107" cy="28.7" r="1.7"/>
+<circle class="pt" cx="107" cy="179.3" r="1.7"/>
+<circle class="pt" cx="115.1" cy="28.7" r="1.7"/>
+<circle class="pt" cx="115.1" cy="179.3" r="1.7"/>
+<circle class="pt" cx="66.7" cy="43.7" r="1.7"/>
+<circle class="pt" cx="66.7" cy="164.3" r="1.7"/>
+<circle class="pt" cx="111" cy="28.7" r="1.7"/>
+<circle class="pt" cx="111" cy="179.3" r="1.7"/>
+<circle class="pt" cx="138.6" cy="33.8" r="1.7"/>
+<circle class="pt" cx="138.6" cy="174.2" r="1.7"/>
+<circle class="pt" cx="53" cy="57.7" r="1.7"/>
+<circle class="pt" cx="53" cy="150.3" r="1.7"/>
+<circle class="pt" cx="43.3" cy="74.9" r="1.7"/>
+<circle class="pt" cx="43.3" cy="133.1" r="1.7"/>
+<circle class="pt" cx="38.3" cy="94.1" r="1.7"/>
+<circle class="pt" cx="38.3" cy="113.9" r="1.7"/>
+<circle class="pt" cx="88.5" cy="33.8" r="1.7"/>
+<circle class="pt" cx="88.5" cy="174.2" r="1.7"/>
+<circle class="pt" cx="154.3" cy="43.7" r="1.7"/>
+<circle class="pt" cx="154.3" cy="164.3" r="1.7"/>
+<circle class="pt" cx="131.5" cy="33.8" r="1.7"/>
+<circle class="pt" cx="131.5" cy="174.2" r="1.7"/>
+<circle class="pt" cx="167.1" cy="57.7" r="1.7"/>
+<circle class="pt" cx="167.1" cy="150.3" r="1.7"/>
+<circle class="pt" cx="97.5" cy="33.8" r="1.7"/>
+<circle class="pt" cx="97.5" cy="174.2" r="1.7"/>
+<circle class="pt" cx="74.6" cy="43.7" r="1.7"/>
+<circle class="pt" cx="74.6" cy="164.3" r="1.7"/>
+<circle class="pt" cx="121" cy="33.8" r="1.7"/>
+<circle class="pt" cx="121" cy="174.2" r="1.7"/>
+<circle class="pt" cx="176.1" cy="74.9" r="1.7"/>
+<circle class="pt" cx="176.1" cy="133.1" r="1.7"/>
+<circle class="pt" cx="109" cy="33.8" r="1.7"/>
+<circle class="pt" cx="109" cy="174.2" r="1.7"/>
+<circle class="pt" cx="180.8" cy="94.1" r="1.7"/>
+<circle class="pt" cx="180.8" cy="113.9" r="1.7"/>
+<circle class="pt" cx="143" cy="43.7" r="1.7"/>
+<circle class="pt" cx="143" cy="164.3" r="1.7"/>
+<circle class="pt" cx="63.2" cy="57.7" r="1.7"/>
+<circle class="pt" cx="63.2" cy="150.3" r="1.7"/>
+<circle class="pt" cx="88.9" cy="43.7" r="1.7"/>
+<circle class="pt" cx="88.9" cy="164.3" r="1.7"/>
+<circle class="pt" cx="55.2" cy="74.9" r="1.7"/>
+<circle class="pt" cx="55.2" cy="133.1" r="1.7"/>
+<circle class="pt" cx="126.3" cy="43.7" r="1.7"/>
+<circle class="pt" cx="126.3" cy="164.3" r="1.7"/>
+<circle class="pt" cx="51" cy="94.1" r="1.7"/>
+<circle class="pt" cx="51" cy="113.9" r="1.7"/>
+<circle class="pt" cx="152.3" cy="57.7" r="1.7"/>
+<circle class="pt" cx="152.3" cy="150.3" r="1.7"/>
+<circle class="pt" cx="107.2" cy="43.7" r="1.7"/>
+<circle class="pt" cx="107.2" cy="164.3" r="1.7"/>
+<circle class="pt" cx="159" cy="74.9" r="1.7"/>
+<circle class="pt" cx="159" cy="133.1" r="1.7"/>
+<circle class="pt" cx="81.9" cy="57.7" r="1.7"/>
+<circle class="pt" cx="81.9" cy="150.3" r="1.7"/>
+<circle class="pt" cx="162.4" cy="94.1" r="1.7"/>
+<circle class="pt" cx="162.4" cy="113.9" r="1.7"/>
+<circle class="pt" cx="130.6" cy="57.7" r="1.7"/>
+<circle class="pt" cx="130.6" cy="150.3" r="1.7"/>
+<circle class="pt" cx="105.7" cy="57.7" r="1.7"/>
+<circle class="pt" cx="105.7" cy="150.3" r="1.7"/>
+<circle class="pt" cx="76.9" cy="74.9" r="1.7"/>
+<circle class="pt" cx="76.9" cy="133.1" r="1.7"/>
+<circle class="pt" cx="74.3" cy="94.1" r="1.7"/>
+<circle class="pt" cx="74.3" cy="113.9" r="1.7"/>
+<circle class="pt" cx="133.7" cy="74.9" r="1.7"/>
+<circle class="pt" cx="133.7" cy="133.1" r="1.7"/>
+<circle class="pt" cx="104.7" cy="74.9" r="1.7"/>
+<circle class="pt" cx="104.7" cy="133.1" r="1.7"/>
+<circle class="pt" cx="135.3" cy="94.1" r="1.7"/>
+<circle class="pt" cx="135.3" cy="113.9" r="1.7"/>
+<circle class="pt" cx="104.1" cy="94.1" r="1.7"/>
+<circle class="pt" cx="104.1" cy="113.9" r="1.7"/>
+<text class="s" x="112" y="206" text-anchor="middle">经纬度网格</text>
+<circle class="disc" cx="288" cy="104" r="76"/>
+<circle class="pt-dim" cx="297" cy="101.9" r="1.2"/>
+<circle class="pt-dim" cx="280.7" cy="90.9" r="1.2"/>
+<circle class="pt-dim" cx="286.9" cy="119.6" r="1.2"/>
+<circle class="pt-dim" cx="270.6" cy="108.6" r="1.2"/>
+<circle class="pt-dim" cx="312.9" cy="112.9" r="1.2"/>
+<circle class="pt-dim" cx="306.4" cy="84.2" r="1.2"/>
+<circle class="pt-dim" cx="302.3" cy="130.6" r="1.2"/>
+<circle class="pt-dim" cx="290.5" cy="73.2" r="1.2"/>
+<circle class="pt-dim" cx="265.8" cy="79.9" r="1.2"/>
+<circle class="pt-dim" cx="255.2" cy="97.7" r="1.2"/>
+<circle class="pt-dim" cx="262.1" cy="126.4" r="1.2"/>
+<circle class="pt-dim" cx="277.9" cy="137.4" r="1.2"/>
+<circle class="pt-dim" cx="322.1" cy="95.1" r="1.2"/>
+<circle class="pt-dim" cx="246.7" cy="115.4" r="1.2"/>
+<circle class="pt-dim" cx="326.5" cy="123.8" r="1.2"/>
+<circle class="pt-dim" cx="276.6" cy="62.2" r="1.2"/>
+<circle class="pt-dim" cx="292.2" cy="148.3" r="1.2"/>
+<circle class="pt-dim" cx="312.9" cy="66.4" r="1.2"/>
+<circle class="pt-dim" cx="314.8" cy="141.6" r="1.2"/>
+<circle class="pt-dim" cx="336.1" cy="106.1" r="1.2"/>
+<circle class="pt-dim" cx="328.4" cy="77.4" r="1.2"/>
+<circle class="pt-dim" cx="242.4" cy="86.7" r="1.2"/>
+<circle class="pt-dim" cx="253.9" cy="69" r="1.2"/>
+<circle class="pt-dim" cx="297.9" cy="55.4" r="1.2"/>
+<circle class="pt-dim" cx="257.1" cy="144.1" r="1.2"/>
+<circle class="pt-dim" cx="272.3" cy="155.1" r="1.2"/>
+<circle class="pt-dim" cx="233.6" cy="104.4" r="1.2"/>
+<circle class="pt-dim" cx="242" cy="133.1" r="1.2"/>
+<circle class="pt-dim" cx="342.4" cy="88.4" r="1.2"/>
+<circle class="pt-dim" cx="266.9" cy="51.2" r="1.2"/>
+<circle class="pt-dim" cx="302.6" cy="159.3" r="1.2"/>
+<circle class="pt-dim" cx="336.3" cy="134.8" r="1.2"/>
+<circle class="pt-dim" cx="285.8" cy="44.5" r="1.2"/>
+<circle class="pt-dim" cx="322.7" cy="152.6" r="1.2"/>
+<circle class="pt-dim" cx="346.7" cy="117.1" r="1.2"/>
+<circle class="pt-dim" cx="329.5" cy="59.7" r="1.2"/>
+<circle class="pt-dim" cx="313.9" cy="48.7" r="1.2"/>
+<circle class="pt-dim" cx="233.6" cy="75.7" r="1.2"/>
+<circle class="pt-dim" cx="246.9" cy="58" r="1.2"/>
+<circle class="pt-dim" cx="228.8" cy="122.2" r="1.2"/>
+<circle class="pt-dim" cx="285.1" cy="166.1" r="1.2"/>
+<circle class="pt-dim" cx="224.1" cy="93.4" r="1.2"/>
+<circle class="pt-dim" cx="258.9" cy="161.8" r="1.2"/>
+<circle class="pt-dim" cx="343.7" cy="70.6" r="1.2"/>
+<circle class="pt-dim" cx="243.1" cy="150.9" r="1.2"/>
+<circle class="pt-dim" cx="353.3" cy="99.4" r="1.2"/>
+<circle class="pt-dim" cx="299.1" cy="37.7" r="1.2"/>
+<circle class="pt-dim" cx="340.9" cy="145.8" r="1.2"/>
+<circle class="pt-dim" cx="264.2" cy="40.2" r="1.2"/>
+<circle class="pt-dim" cx="305.8" cy="170.3" r="1.2"/>
+<circle class="pt-dim" cx="229.4" cy="139.9" r="1.2"/>
+<circle class="pt-dim" cx="352.8" cy="128.1" r="1.2"/>
+<circle class="pt-dim" cx="323.5" cy="163.5" r="1.2"/>
+<circle class="pt-dim" cx="219" cy="111.2" r="1.2"/>
+<circle class="pt-dim" cx="230.1" cy="64.7" r="1.2"/>
+<circle class="pt-dim" cx="275" cy="172.8" r="1.2"/>
+<circle class="pt-dim" cx="246.7" cy="47" r="1.2"/>
+<circle class="pt-dim" cx="354.9" cy="81.6" r="1.2"/>
+<circle class="pt-dim" cx="321.5" cy="41.9" r="1.2"/>
+<circle class="pt-dim" cx="280.6" cy="33.5" r="1.2"/>
+<circle class="pt-dim" cx="337.8" cy="52.9" r="1.2"/>
+<circle class="pt-dim" cx="219.3" cy="82.5" r="1.2"/>
+<circle class="pt-dim" cx="359.9" cy="110.3" r="1.2"/>
+<circle class="pt-dim" cx="254.7" cy="168.6" r="1.2"/>
+<circle class="pt-dim" cx="291.2" cy="177" r="1.2"/>
+<circle class="pt-dim" cx="219.2" cy="128.9" r="1.2"/>
+<circle class="pt-dim" cx="339" cy="156.8" r="1.2"/>
+<circle class="pt-dim" cx="237.8" cy="157.6" r="1.2"/>
+<circle class="pt-dim" cx="350.3" cy="63.9" r="1.2"/>
+<circle class="pt-dim" cx="300.8" cy="31" r="1.2"/>
+<circle class="pt-dim" cx="353.6" cy="139" r="1.2"/>
+<circle class="pt-dim" cx="213.7" cy="100.2" r="1.2"/>
+<circle class="pt-dim" cx="232.9" cy="53.8" r="1.2"/>
+<circle class="pt-dim" cx="361.9" cy="92.6" r="1.2"/>
+<circle class="pt-dim" cx="312.8" cy="174.5" r="1.2"/>
+<circle class="pt-dim" cx="256.6" cy="36" r="1.2"/>
+<circle class="pt-dim" cx="318.3" cy="35.2" r="1.2"/>
+<circle class="pt-dim" cx="225.9" cy="146.6" r="1.2"/>
+<circle class="pt-dim" cx="277.8" cy="29.3" r="1.2"/>
+<circle class="pt-dim" cx="219.8" cy="71.5" r="1.2"/>
+<circle class="pt-dim" cx="361.6" cy="121.3" r="1.2"/>
+<circle class="pt-dim" cx="336.9" cy="46.2" r="1.2"/>
+<circle class="pt-dim" cx="328.9" cy="167.8" r="1.2"/>
+<circle class="pt-dim" cx="262.6" cy="175.4" r="1.2"/>
+<circle class="pt-dim" cx="282.5" cy="179.6" r="1.2"/>
+<circle class="pt-dim" cx="213.5" cy="117.9" r="1.2"/>
+<circle class="pt-dim" cx="358.1" cy="74.9" r="1.2"/>
+<circle class="pt-dim" cx="243" cy="42.8" r="1.2"/>
+<circle class="pt-dim" cx="348.5" cy="150" r="1.2"/>
+<circle class="pt-dim" cx="241.9" cy="164.4" r="1.2"/>
+<circle class="pt-dim" cx="296" cy="28.4" r="1.2"/>
+<circle class="pt" cx="213.5" cy="89.2" r="1.7"/>
+<circle class="pt" cx="301.8" cy="178.7" r="1.7"/>
+<circle class="pt" cx="364" cy="103.6" r="1.7"/>
+<circle class="pt" cx="264.6" cy="31.8" r="1.7"/>
+<circle class="pt" cx="219" cy="135.7" r="1.7"/>
+<circle class="pt" cx="347.6" cy="57.1" r="1.7"/>
+<circle class="pt" cx="225.9" cy="60.5" r="1.7"/>
+<circle class="pt" cx="358.1" cy="132.3" r="1.7"/>
+<circle class="pt" cx="327.1" cy="39.4" r="1.7"/>
+<circle class="pt" cx="337.3" cy="161" r="1.7"/>
+<circle class="pt" cx="212.8" cy="107" r="1.7"/>
+<circle class="pt" cx="274.2" cy="177.9" r="1.7"/>
+<circle class="pt" cx="231.3" cy="153.4" r="1.7"/>
+<circle class="pt" cx="254.3" cy="171.1" r="1.7"/>
+<circle class="pt" cx="360.8" cy="85.8" r="1.7"/>
+<circle class="pt" cx="319.1" cy="172" r="1.7"/>
+<circle class="pt" cx="310.1" cy="32.6" r="1.7"/>
+<circle class="pt" cx="218.3" cy="78.2" r="1.7"/>
+<circle class="pt" cx="237.5" cy="49.5" r="1.7"/>
+<circle class="pt" cx="289.6" cy="30.1" r="1.7"/>
+<circle class="pt" cx="361" cy="114.6" r="1.7"/>
+<circle class="pt" cx="254.6" cy="38.6" r="1.7"/>
+<circle class="pt" cx="301.2" cy="176.2" r="1.7"/>
+<circle class="pt" cx="352" cy="68.1" r="1.7"/>
+<circle class="pt" cx="217.7" cy="124.7" r="1.7"/>
+<circle class="pt" cx="349.5" cy="143.3" r="1.7"/>
+<circle class="pt" cx="336.9" cy="50.4" r="1.7"/>
+<circle class="pt" cx="227.9" cy="142.4" r="1.7"/>
+<circle class="pt" cx="244.2" cy="160.2" r="1.7"/>
+<circle class="pt" cx="217.3" cy="96" r="1.7"/>
+<circle class="pt" cx="274" cy="34.3" r="1.7"/>
+<circle class="pt" cx="358.2" cy="96.8" r="1.7"/>
+<circle class="pt" cx="227.9" cy="67.3" r="1.7"/>
+<circle class="pt" cx="278.3" cy="173.7" r="1.7"/>
+<circle class="pt" cx="336.7" cy="154.2" r="1.7"/>
+<circle class="pt" cx="320.5" cy="165.2" r="1.7"/>
+<circle class="pt" cx="303.1" cy="36.9" r="1.7"/>
+<circle class="pt" cx="320.7" cy="43.6" r="1.7"/>
+<circle class="pt" cx="353.2" cy="125.5" r="1.7"/>
+<circle class="pt" cx="261.3" cy="166.9" r="1.7"/>
+<circle class="pt" cx="350.5" cy="79.1" r="1.7"/>
+<circle class="pt" cx="221.6" cy="113.7" r="1.7"/>
+<circle class="pt" cx="241.2" cy="56.3" r="1.7"/>
+<circle class="pt" cx="257.1" cy="45.3" r="1.7"/>
+<circle class="pt" cx="297.2" cy="169.4" r="1.7"/>
+<circle class="pt" cx="338.1" cy="61.4" r="1.7"/>
+<circle class="pt" cx="226.3" cy="85" r="1.7"/>
+<circle class="pt" cx="230.6" cy="131.4" r="1.7"/>
+<circle class="pt" cx="243.8" cy="149.2" r="1.7"/>
+<circle class="pt" cx="282.5" cy="41.1" r="1.7"/>
+<circle class="pt" cx="350.7" cy="107.8" r="1.7"/>
+<circle class="pt" cx="341.4" cy="136.5" r="1.7"/>
+<circle class="pt" cx="311.4" cy="158.5" r="1.7"/>
+<circle class="pt" cx="282.7" cy="162.7" r="1.7"/>
+<circle class="pt" cx="319.2" cy="54.6" r="1.7"/>
+<circle class="pt" cx="326.9" cy="147.5" r="1.7"/>
+<circle class="pt" cx="230.4" cy="102.7" r="1.7"/>
+<circle class="pt" cx="263.4" cy="155.9" r="1.7"/>
+<circle class="pt" cx="239" cy="74" r="1.7"/>
+<circle class="pt" cx="343.6" cy="90.1" r="1.7"/>
+<circle class="pt" cx="299.2" cy="47.8" r="1.7"/>
+<circle class="pt" cx="269.2" cy="52.1" r="1.7"/>
+<circle class="pt" cx="332.8" cy="72.3" r="1.7"/>
+<circle class="pt" cx="253.9" cy="63" r="1.7"/>
+<circle class="pt" cx="339.2" cy="118.8" r="1.7"/>
+<circle class="pt" cx="238.7" cy="120.5" r="1.7"/>
+<circle class="pt" cx="250.1" cy="138.2" r="1.7"/>
+<circle class="pt" cx="294.3" cy="151.7" r="1.7"/>
+<circle class="pt" cx="242.9" cy="91.8" r="1.7"/>
+<circle class="pt" cx="288.3" cy="58.8" r="1.7"/>
+<circle class="pt" cx="324.8" cy="129.8" r="1.7"/>
+<circle class="pt" cx="310.8" cy="65.6" r="1.7"/>
+<circle class="pt" cx="332.3" cy="101" r="1.7"/>
+<circle class="pt" cx="272.6" cy="145" r="1.7"/>
+<circle class="pt" cx="309.1" cy="140.7" r="1.7"/>
+<circle class="pt" cx="322.3" cy="83.3" r="1.7"/>
+<circle class="pt" cx="258" cy="80.8" r="1.7"/>
+<circle class="pt" cx="251" cy="109.5" r="1.7"/>
+<circle class="pt" cx="273.8" cy="69.8" r="1.7"/>
+<circle class="pt" cx="261.4" cy="127.2" r="1.7"/>
+<circle class="pt" cx="317.9" cy="112" r="1.7"/>
+<circle class="pt" cx="286.1" cy="134" r="1.7"/>
+<circle class="pt" cx="297.8" cy="76.6" r="1.7"/>
+<circle class="pt" cx="301.9" cy="123" r="1.7"/>
+<circle class="pt" cx="266" cy="98.5" r="1.7"/>
+<circle class="pt" cx="308.3" cy="94.3" r="1.7"/>
+<circle class="pt" cx="282.2" cy="87.5" r="1.7"/>
+<circle class="pt" cx="276" cy="116.2" r="1.7"/>
+<circle class="pt" cx="292.3" cy="105.3" r="1.7"/>
+<text class="s" x="288" y="206" text-anchor="middle">球面斐波那契</text>
+</svg>
+      </div>
+      <figcaption>
+        同样是 180 个方向。左：经纬度网格，两极密集、赤道稀疏，且点排成一条条纬线。
+        右：球面斐波那契，整个球面疏密一致。浅色点位于球面背面。
+      </figcaption>
+    </figure>
+
+    <h4>极角：按面积分层</h4>
+
+    <p>
+      要让点在球面上均匀，需要让每个点"分到"相同的球面面积。
+      球面上介于 <span class="fx v">z</span> 与
+      <span class="fx v">z</span>+<span class="op">d</span><span class="fx v">z</span>
+      之间的球带，面积为 2π&thinsp;<span class="op">d</span><span class="fx v">z</span>，
+      与 <span class="fx v">z</span> 本身无关。
+    </p>
+
+    <p>
+      这一点可以直接算出：面积元
+      <span class="op">d</span><span class="fx v">A</span> =
+      sin&thinsp;θ&thinsp;<span class="op">d</span>θ&thinsp;<span class="op">d</span>φ，
+      代入 <span class="fx v">z</span> = cos&thinsp;θ 得
+      <span class="op">d</span><span class="fx v">A</span> =
+      <span class="op">d</span><span class="fx v">z</span>&thinsp;<span class="op">d</span>φ，
+      对 φ 积满一圈即得 2π&thinsp;<span class="op">d</span><span class="fx v">z</span>。
+      对半径 1 的球，z 从 −1 积到 1 恰好得到 4π，即球的表面积。
+    </p>
+
+    <p>因此只要把 <span class="fx v">z</span> ∈ [−1, 1] 等分成 N 层，每层面积自动相等：</p>
+
+    <div class="math">
+      <span class="v">z<sub>i</sub></span> = 1 −
+      <span class="frac"><span class="n">2<span class="v">i</span> + 1</span><span class="d"><span class="v">N</span></span></span>
+      &nbsp;&nbsp;(<span class="v">i</span> = 0, 1, … <span class="v">N</span> − 1)
+    </div>
+
+    <p>
+      取每层的中点而非端点，避免点正好落在分层边界上。
+      注意两极（<span class="fx v">z</span> = ±1）不会被取到。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram sm" viewBox="0 0 232 214" role="img" aria-label="球体剖面上沿竖直轴六等分。相邻两条分界线之间是一个球面带，靠近两极的带在剖面上更窄，但每一带的球面面积都等于 2π 乘以分带的高度，彼此相等。">
+<text class="band" x="24" y="18">沿 z 等分：每层面积相同</text>
+<circle class="disc" cx="104" cy="104" r="78"/>
+<path class="band-fill" d="M104,26 L104,26 A78,78 0 0 1 162.1,52 L45.9,52 A78,78 0 0 0 104,26 Z"/>
+<path class="band-fill" d="M30.5,78 L177.5,78 A78,78 0 0 1 182,104 L26,104 A78,78 0 0 0 30.5,78 Z"/>
+<path class="band-fill" d="M30.5,130 L177.5,130 A78,78 0 0 1 162.1,156 L45.9,156 A78,78 0 0 0 30.5,130 Z"/>
+<line class="band-ln" x1="45.9" y1="52" x2="162.1" y2="52"/>
+<line class="band-ln" x1="30.5" y1="78" x2="177.5" y2="78"/>
+<line class="band-ln" x1="26" y1="104" x2="182" y2="104"/>
+<line class="band-ln" x1="30.5" y1="130" x2="177.5" y2="130"/>
+<line class="band-ln" x1="45.9" y1="156" x2="162.1" y2="156"/>
+<text class="s" x="104" y="206" text-anchor="middle">每层球面面积 ＝ 2π·Δz</text>
+</svg>
+      </div>
+      <figcaption>
+        把 <span class="fx v">z</span> 六等分的剖面。相邻两条分界线之间是一个球面带，
+        靠近两极的带在剖面上明显更窄，但球面面积与中间各层完全相同，都等于 2π&thinsp;Δ<span class="fx v">z</span>。
+        这是球面与平面在面积上最不同的一点：球带的面积只取决于高度，不取决于所处纬度。
+      </figcaption>
+    </figure>
+
+    <h4>方位角：黄金角</h4>
+
+    <p>
+      极角定下来后，每一层恰好放一个点，方位角还需要逐点错开，否则点会排成一条经线。
+      设方位角按固定步长 α 递增，则 α 的取值决定成败。
+    </p>
+
+    <p>
+      若 α 是 2π 的有理数倍，即 α = 2π&thinsp;<span class="frac"><span class="n">p</span><span class="d">q</span></span>，
+      则方位角只能取 q 个离散值，点会落在一组固定的经线上，表现为放射状的辐条。
+      步长必须取无理数倍，并且要"足够无理"。
+    </p>
+
+    <p>DDGI 使用的步长是<b>黄金角</b>：</p>
+
+    <div class="math">
+      α = <span class="frac"><span class="n">2π</span><span class="d">φ<sup>2</sup></span></span>
+      = 2π(1 − <span class="frac"><span class="n">1</span><span class="d">φ</span></span>)
+      ≈ 137.50776°
+    </div>
+
+    <p>
+      其中 φ = (1 + √5) / 2 ≈ 1.6180339887 是黄金比。选择它的理由属于数论：
+      φ 的连分数展开为 [1; 1, 1, 1, …]，每一项都是最小值 1，
+      这使它的收敛速度在所有无理数中最慢。由 Hurwitz 定理，φ 是最难被有理数逼近的无理数。
+      直观地说，<span class="fx v">i</span>&thinsp;/&thinsp;φ 的小数部分在任意步数下
+      都不会向少数几个值聚拢。
+    </p>
+
+    <p>
+      下图在球面上演示：极角一律按 <span class="fx v">z</span> 等分，三个球面取同样多的方向，
+      差别只在方位角的步长。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 580 214" role="img" aria-label="三个球面各取 200 个方向，极角一律按 z 等分，只改变方位角的步长。黄金角时分布均匀；步长取 2π 乘以 8/21 时出现 21 条经线的痕迹；步长取 2π/4 时退化为 4 条经线。">
+<text class="band" x="24" y="18">同样 200 个方向，只改方位角的步长</text>
+<circle class="disc" cx="104" cy="104" r="76"/>
+<circle class="pt-dim" cx="108.2" cy="97.5" r="1.1"/>
+<circle class="pt-dim" cx="91.9" cy="107.4" r="1.1"/>
+<circle class="pt-dim" cx="118.2" cy="113.5" r="1.1"/>
+<circle class="pt-dim" cx="102" cy="123.4" r="1.1"/>
+<circle class="pt-dim" cx="98.4" cy="81.6" r="1.1"/>
+<circle class="pt-dim" cx="82.3" cy="91.5" r="1.1"/>
+<circle class="pt-dim" cx="124" cy="87.7" r="1.1"/>
+<circle class="pt-dim" cx="134" cy="103.6" r="1.1"/>
+<circle class="pt-dim" cx="76.5" cy="117.3" r="1.1"/>
+<circle class="pt-dim" cx="113.5" cy="71.7" r="1.1"/>
+<circle class="pt-dim" cx="87.1" cy="133.3" r="1.1"/>
+<circle class="pt-dim" cx="126.8" cy="129.5" r="1.1"/>
+<circle class="pt-dim" cx="111.2" cy="139.3" r="1.1"/>
+<circle class="pt-dim" cx="66.9" cy="101.3" r="1.1"/>
+<circle class="pt-dim" cx="90.2" cy="65.6" r="1.1"/>
+<circle class="pt-dim" cx="74.8" cy="75.5" r="1.1"/>
+<circle class="pt-dim" cx="142.2" cy="119.6" r="1.1"/>
+<circle class="pt-dim" cx="137.5" cy="77.8" r="1.1"/>
+<circle class="pt-dim" cx="147.9" cy="93.7" r="1.1"/>
+<circle class="pt-dim" cx="97.3" cy="149.2" r="1.1"/>
+<circle class="pt-dim" cx="63.5" cy="127.2" r="1.1"/>
+<circle class="pt-dim" cx="126" cy="61.8" r="1.1"/>
+<circle class="pt-dim" cx="59.7" cy="85.4" r="1.1"/>
+<circle class="pt-dim" cx="104.3" cy="55.7" r="1.1"/>
+<circle class="pt-dim" cx="75.1" cy="143.1" r="1.1"/>
+<circle class="pt-dim" cx="132.1" cy="145.4" r="1.1"/>
+<circle class="pt-dim" cx="53.7" cy="111.2" r="1.1"/>
+<circle class="pt-dim" cx="156" cy="109.7" r="1.1"/>
+<circle class="pt-dim" cx="117.4" cy="155.3" r="1.1"/>
+<circle class="pt-dim" cx="147.1" cy="135.5" r="1.1"/>
+<circle class="pt-dim" cx="71.2" cy="59.5" r="1.1"/>
+<circle class="pt-dim" cx="147.3" cy="67.9" r="1.1"/>
+<circle class="pt-dim" cx="86" cy="49.7" r="1.1"/>
+<circle class="pt-dim" cx="87.2" cy="159.1" r="1.1"/>
+<circle class="pt-dim" cx="46.7" cy="95.3" r="1.1"/>
+<circle class="pt-dim" cx="158.5" cy="83.9" r="1.1"/>
+<circle class="pt-dim" cx="56.5" cy="69.4" r="1.1"/>
+<circle class="pt-dim" cx="114.7" cy="45.9" r="1.1"/>
+<circle class="pt-dim" cx="54.5" cy="137.1" r="1.1"/>
+<circle class="pt-dim" cx="133.9" cy="51.9" r="1.1"/>
+<circle class="pt-dim" cx="160.6" cy="125.7" r="1.1"/>
+<circle class="pt-dim" cx="67.7" cy="153" r="1.1"/>
+<circle class="pt-dim" cx="105.1" cy="165.2" r="1.1"/>
+<circle class="pt-dim" cx="44.1" cy="121.1" r="1.1"/>
+<circle class="pt-dim" cx="166.7" cy="99.8" r="1.1"/>
+<circle class="pt-dim" cx="131.8" cy="161.4" r="1.1"/>
+<circle class="pt-dim" cx="146.9" cy="151.5" r="1.1"/>
+<circle class="pt-dim" cx="98.8" cy="39.8" r="1.1"/>
+<circle class="pt-dim" cx="43.7" cy="79.3" r="1.1"/>
+<circle class="pt-dim" cx="152.2" cy="58" r="1.1"/>
+<circle class="pt-dim" cx="37.1" cy="105.1" r="1.1"/>
+<circle class="pt-dim" cx="74.5" cy="43.6" r="1.1"/>
+<circle class="pt-dim" cx="59.1" cy="53.5" r="1.1"/>
+<circle class="pt-dim" cx="164.7" cy="74" r="1.1"/>
+<circle class="pt-dim" cx="160.4" cy="141.6" r="1.1"/>
+<circle class="pt-dim" cx="83.7" cy="169" r="1.1"/>
+<circle class="pt-dim" cx="171.1" cy="115.8" r="1.1"/>
+<circle class="pt-dim" cx="116.9" cy="171.3" r="1.1"/>
+<circle class="pt-dim" cx="50.4" cy="146.9" r="1.1"/>
+<circle class="pt-dim" cx="135.2" cy="42.1" r="1.1"/>
+<circle class="pt-dim" cx="118.4" cy="36" r="1.1"/>
+<circle class="pt-dim" cx="66.6" cy="162.9" r="1.1"/>
+<circle class="pt-dim" cx="38.9" cy="131" r="1.1"/>
+<circle class="pt-dim" cx="173.3" cy="89.9" r="1.1"/>
+<circle class="pt-dim" cx="46" cy="63.3" r="1.1"/>
+<circle class="pt-dim" cx="98.9" cy="175.1" r="1.1"/>
+<circle class="pt-dim" cx="34.2" cy="89.2" r="1.1"/>
+<circle class="pt-dim" cx="90.7" cy="33.7" r="1.1"/>
+<circle class="pt-dim" cx="137.8" cy="167.5" r="1.1"/>
+<circle class="pt-dim" cx="170.9" cy="131.7" r="1.1"/>
+<circle class="pt-dim" cx="153.4" cy="157.6" r="1.1"/>
+<circle class="pt-dim" cx="150.8" cy="48.1" r="1.1"/>
+<circle class="pt-dim" cx="31.7" cy="115" r="1.1"/>
+<circle class="pt-dim" cx="165.8" cy="64.1" r="1.1"/>
+<circle class="pt-dim" cx="177.7" cy="105.9" r="1.1"/>
+<circle class="pt-dim" cx="72.2" cy="37.5" r="1.1"/>
+<circle class="pt-dim" cx="52.3" cy="156.8" r="1.1"/>
+<circle class="pt-dim" cx="105.5" cy="29.9" r="1.1"/>
+<circle class="pt-dim" cx="36.3" cy="73.2" r="1.1"/>
+<circle class="pt-dim" cx="55.7" cy="47.4" r="1.1"/>
+<circle class="pt-dim" cx="117.2" cy="177.3" r="1.1"/>
+<circle class="pt-dim" cx="75.1" cy="172.8" r="1.1"/>
+<circle class="pt-dim" cx="125" cy="32.2" r="1.1"/>
+<circle class="pt-dim" cx="38.8" cy="140.9" r="1.1"/>
+<circle class="pt-dim" cx="165" cy="147.7" r="1.1"/>
+<circle class="pt-dim" cx="175.1" cy="80.1" r="1.1"/>
+<circle class="pt-dim" cx="28.9" cy="99.1" r="1.1"/>
+<circle class="pt-dim" cx="95" cy="178.9" r="1.1"/>
+<circle class="pt-dim" cx="133.5" cy="173.5" r="1.1"/>
+<circle class="pt-dim" cx="177.4" cy="121.9" r="1.1"/>
+<circle class="pt-dim" cx="141.2" cy="38.3" r="1.1"/>
+<circle class="pt-dim" cx="44.3" cy="57.3" r="1.1"/>
+<circle class="pt-dim" cx="61.3" cy="166.7" r="1.1"/>
+<circle class="pt-dim" cx="161.2" cy="54.2" r="1.1"/>
+<circle class="pt-dim" cx="31.1" cy="124.9" r="1.1"/>
+<circle class="pt-dim" cx="81.8" cy="31.4" r="1.1"/>
+<circle class="pt-dim" cx="151" cy="163.7" r="1.1"/>
+<circle class="pt-dim" cx="179.5" cy="96" r="1.1"/>
+<circle class="pt-dim" cx="30.9" cy="83.1" r="1.1"/>
+<circle class="pt-dim" cx="111.6" cy="28.4" r="1.1"/>
+<circle class="pt" cx="111.6" cy="179.6" r="1.6"/>
+<circle class="pt" cx="44.1" cy="150.7" r="1.6"/>
+<circle class="pt" cx="172" cy="137.8" r="1.6"/>
+<circle class="pt" cx="61.1" cy="41.3" r="1.6"/>
+<circle class="pt" cx="81.6" cy="176.6" r="1.6"/>
+<circle class="pt" cx="172" cy="70.2" r="1.6"/>
+<circle class="pt" cx="28.4" cy="108.9" r="1.6"/>
+<circle class="pt" cx="150.7" cy="44.3" r="1.6"/>
+<circle class="pt" cx="179.2" cy="112" r="1.6"/>
+<circle class="pt" cx="38" cy="67.1" r="1.6"/>
+<circle class="pt" cx="160.8" cy="153.8" r="1.6"/>
+<circle class="pt" cx="94.3" cy="29.1" r="1.6"/>
+<circle class="pt" cx="132.8" cy="34.5" r="1.6"/>
+<circle class="pt" cx="35.4" cy="134.8" r="1.6"/>
+<circle class="pt" cx="140.6" cy="169.7" r="1.6"/>
+<circle class="pt" cx="54.7" cy="160.6" r="1.6"/>
+<circle class="pt" cx="74.1" cy="35.2" r="1.6"/>
+<circle class="pt" cx="176.6" cy="86.1" r="1.6"/>
+<circle class="pt" cx="51.2" cy="51.2" r="1.6"/>
+<circle class="pt" cx="124" cy="175.8" r="1.6"/>
+<circle class="pt" cx="30.4" cy="93" r="1.6"/>
+<circle class="pt" cx="116.1" cy="30.7" r="1.6"/>
+<circle class="pt" cx="70.9" cy="170.5" r="1.6"/>
+<circle class="pt" cx="164" cy="60.3" r="1.6"/>
+<circle class="pt" cx="174.1" cy="127.9" r="1.6"/>
+<circle class="pt" cx="104.3" cy="178.1" r="1.6"/>
+<circle class="pt" cx="32.6" cy="118.8" r="1.6"/>
+<circle class="pt" cx="44.2" cy="144.7" r="1.6"/>
+<circle class="pt" cx="164.3" cy="143.9" r="1.6"/>
+<circle class="pt" cx="37" cy="77" r="1.6"/>
+<circle class="pt" cx="176.2" cy="102.1" r="1.6"/>
+<circle class="pt" cx="88.9" cy="174.3" r="1.6"/>
+<circle class="pt" cx="149.1" cy="159.9" r="1.6"/>
+<circle class="pt" cx="151.7" cy="50.4" r="1.6"/>
+<circle class="pt" cx="97" cy="32.9" r="1.6"/>
+<circle class="pt" cx="136" cy="40.5" r="1.6"/>
+<circle class="pt" cx="64.6" cy="45.1" r="1.6"/>
+<circle class="pt" cx="169.1" cy="76.3" r="1.6"/>
+<circle class="pt" cx="48.2" cy="61.1" r="1.6"/>
+<circle class="pt" cx="34.7" cy="102.9" r="1.6"/>
+<circle class="pt" cx="56.8" cy="154.5" r="1.6"/>
+<circle class="pt" cx="116.2" cy="172" r="1.6"/>
+<circle class="pt" cx="81.3" cy="39" r="1.6"/>
+<circle class="pt" cx="171.2" cy="118.1" r="1.6"/>
+<circle class="pt" cx="132.9" cy="165.9" r="1.6"/>
+<circle class="pt" cx="72" cy="164.4" r="1.6"/>
+<circle class="pt" cx="114.6" cy="36.7" r="1.6"/>
+<circle class="pt" cx="41.1" cy="128.7" r="1.6"/>
+<circle class="pt" cx="157.8" cy="66.4" r="1.6"/>
+<circle class="pt" cx="168.6" cy="92.2" r="1.6"/>
+<circle class="pt" cx="162.2" cy="134" r="1.6"/>
+<circle class="pt" cx="41.1" cy="86.9" r="1.6"/>
+<circle class="pt" cx="95.9" cy="168.2" r="1.6"/>
+<circle class="pt" cx="149.5" cy="150" r="1.6"/>
+<circle class="pt" cx="64.6" cy="55" r="1.6"/>
+<circle class="pt" cx="128.8" cy="46.6" r="1.6"/>
+<circle class="pt" cx="51.2" cy="70.9" r="1.6"/>
+<circle class="pt" cx="143.9" cy="56.5" r="1.6"/>
+<circle class="pt" cx="53.2" cy="138.6" r="1.6"/>
+<circle class="pt" cx="101.9" cy="42.8" r="1.6"/>
+<circle class="pt" cx="43.4" cy="112.7" r="1.6"/>
+<circle class="pt" cx="163.5" cy="108.2" r="1.6"/>
+<circle class="pt" cx="83.8" cy="48.9" r="1.6"/>
+<circle class="pt" cx="111.3" cy="162.1" r="1.6"/>
+<circle class="pt" cx="130.6" cy="156.1" r="1.6"/>
+<circle class="pt" cx="82.5" cy="158.3" r="1.6"/>
+<circle class="pt" cx="67.6" cy="148.5" r="1.6"/>
+<circle class="pt" cx="157.2" cy="82.3" r="1.6"/>
+<circle class="pt" cx="154.9" cy="124.1" r="1.6"/>
+<circle class="pt" cx="49.9" cy="96.8" r="1.6"/>
+<circle class="pt" cx="143.6" cy="140.1" r="1.6"/>
+<circle class="pt" cx="113.5" cy="52.7" r="1.6"/>
+<circle class="pt" cx="55.7" cy="122.6" r="1.6"/>
+<circle class="pt" cx="71.1" cy="64.9" r="1.6"/>
+<circle class="pt" cx="143.2" cy="72.5" r="1.6"/>
+<circle class="pt" cx="59.4" cy="80.8" r="1.6"/>
+<circle class="pt" cx="100.1" cy="152.3" r="1.6"/>
+<circle class="pt" cx="152" cy="98.3" r="1.6"/>
+<circle class="pt" cx="128" cy="62.6" r="1.6"/>
+<circle class="pt" cx="93.1" cy="58.8" r="1.6"/>
+<circle class="pt" cx="121.7" cy="146.2" r="1.6"/>
+<circle class="pt" cx="70.3" cy="132.5" r="1.6"/>
+<circle class="pt" cx="85.7" cy="142.4" r="1.6"/>
+<circle class="pt" cx="62.3" cy="106.7" r="1.6"/>
+<circle class="pt" cx="143.5" cy="114.3" r="1.6"/>
+<circle class="pt" cx="133" cy="130.2" r="1.6"/>
+<circle class="pt" cx="137.6" cy="88.4" r="1.6"/>
+<circle class="pt" cx="82.4" cy="74.7" r="1.6"/>
+<circle class="pt" cx="106.5" cy="68.7" r="1.6"/>
+<circle class="pt" cx="71.6" cy="90.7" r="1.6"/>
+<circle class="pt" cx="108.7" cy="136.3" r="1.6"/>
+<circle class="pt" cx="121.9" cy="78.5" r="1.6"/>
+<circle class="pt" cx="77.3" cy="116.5" r="1.6"/>
+<circle class="pt" cx="129" cy="104.4" r="1.6"/>
+<circle class="pt" cx="93.3" cy="126.4" r="1.6"/>
+<circle class="pt" cx="118.9" cy="120.3" r="1.6"/>
+<circle class="pt" cx="96.9" cy="84.6" r="1.6"/>
+<circle class="pt" cx="86.6" cy="100.6" r="1.6"/>
+<circle class="pt" cx="113" cy="94.5" r="1.6"/>
+<circle class="pt" cx="102.9" cy="110.5" r="1.6"/>
+<text class="s" x="104" y="206" text-anchor="middle">137.50776°（黄金角）</text>
+<circle class="disc" cx="290" cy="104" r="76"/>
+<circle class="pt-dim" cx="295.7" cy="109.7" r="1.1"/>
+<circle class="pt-dim" cx="295.6" cy="93.7" r="1.1"/>
+<circle class="pt-dim" cx="273.1" cy="103.6" r="1.1"/>
+<circle class="pt-dim" cx="295.4" cy="125.7" r="1.1"/>
+<circle class="pt-dim" cx="273.4" cy="119.6" r="1.1"/>
+<circle class="pt-dim" cx="273.5" cy="87.7" r="1.1"/>
+<circle class="pt-dim" cx="295.3" cy="77.8" r="1.1"/>
+<circle class="pt-dim" cx="317.7" cy="99.8" r="1.1"/>
+<circle class="pt-dim" cx="317.4" cy="115.8" r="1.1"/>
+<circle class="pt-dim" cx="316.8" cy="83.9" r="1.1"/>
+<circle class="pt-dim" cx="274.6" cy="135.5" r="1.1"/>
+<circle class="pt-dim" cx="274.7" cy="71.7" r="1.1"/>
+<circle class="pt-dim" cx="315.9" cy="131.7" r="1.1"/>
+<circle class="pt-dim" cx="294.9" cy="141.6" r="1.1"/>
+<circle class="pt-dim" cx="252.1" cy="97.5" r="1.1"/>
+<circle class="pt-dim" cx="252.3" cy="113.5" r="1.1"/>
+<circle class="pt-dim" cx="294.7" cy="61.8" r="1.1"/>
+<circle class="pt-dim" cx="253.7" cy="81.6" r="1.1"/>
+<circle class="pt-dim" cx="314.4" cy="67.9" r="1.1"/>
+<circle class="pt-dim" cx="254.2" cy="129.5" r="1.1"/>
+<circle class="pt-dim" cx="337.4" cy="105.9" r="1.1"/>
+<circle class="pt-dim" cx="336.6" cy="89.9" r="1.1"/>
+<circle class="pt-dim" cx="312.7" cy="147.7" r="1.1"/>
+<circle class="pt-dim" cx="276.8" cy="151.5" r="1.1"/>
+<circle class="pt-dim" cx="336.1" cy="121.9" r="1.1"/>
+<circle class="pt-dim" cx="276.9" cy="55.7" r="1.1"/>
+<circle class="pt-dim" cx="257.2" cy="65.6" r="1.1"/>
+<circle class="pt-dim" cx="258.1" cy="145.4" r="1.1"/>
+<circle class="pt-dim" cx="333.5" cy="74" r="1.1"/>
+<circle class="pt-dim" cx="294" cy="157.6" r="1.1"/>
+<circle class="pt-dim" cx="332.4" cy="137.8" r="1.1"/>
+<circle class="pt-dim" cx="234.3" cy="107.4" r="1.1"/>
+<circle class="pt-dim" cx="310.2" cy="51.9" r="1.1"/>
+<circle class="pt-dim" cx="235.1" cy="91.5" r="1.1"/>
+<circle class="pt-dim" cx="236.1" cy="123.4" r="1.1"/>
+<circle class="pt-dim" cx="293.7" cy="45.9" r="1.1"/>
+<circle class="pt-dim" cx="238.4" cy="75.5" r="1.1"/>
+<circle class="pt-dim" cx="327.7" cy="58" r="1.1"/>
+<circle class="pt-dim" cx="263.4" cy="49.7" r="1.1"/>
+<circle class="pt-dim" cx="240.7" cy="139.3" r="1.1"/>
+<circle class="pt-dim" cx="325.8" cy="153.8" r="1.1"/>
+<circle class="pt-dim" cx="307.2" cy="163.7" r="1.1"/>
+<circle class="pt-dim" cx="265.1" cy="161.4" r="1.1"/>
+<circle class="pt-dim" cx="352.4" cy="112" r="1.1"/>
+<circle class="pt-dim" cx="352.4" cy="96" r="1.1"/>
+<circle class="pt-dim" cx="244.8" cy="59.5" r="1.1"/>
+<circle class="pt-dim" cx="280.7" cy="167.5" r="1.1"/>
+<circle class="pt-dim" cx="349.6" cy="127.9" r="1.1"/>
+<circle class="pt-dim" cx="349.6" cy="80.1" r="1.1"/>
+<circle class="pt-dim" cx="281" cy="39.8" r="1.1"/>
+<circle class="pt-dim" cx="248.9" cy="155.3" r="1.1"/>
+<circle class="pt-dim" cx="343.4" cy="64.1" r="1.1"/>
+<circle class="pt-dim" cx="343.4" cy="143.9" r="1.1"/>
+<circle class="pt-dim" cx="317.5" cy="42.1" r="1.1"/>
+<circle class="pt-dim" cx="221.6" cy="101.3" r="1.1"/>
+<circle class="pt-dim" cx="222.6" cy="117.3" r="1.1"/>
+<circle class="pt-dim" cx="223.6" cy="85.4" r="1.1"/>
+<circle class="pt-dim" cx="302.4" cy="36" r="1.1"/>
+<circle class="pt-dim" cx="256.2" cy="43.6" r="1.1"/>
+<circle class="pt-dim" cx="292.3" cy="173.5" r="1.1"/>
+<circle class="pt-dim" cx="226.8" cy="133.3" r="1.1"/>
+<circle class="pt-dim" cx="313.8" cy="169.7" r="1.1"/>
+<circle class="pt-dim" cx="229" cy="69.4" r="1.1"/>
+<circle class="pt-dim" cx="332.6" cy="48.1" r="1.1"/>
+<circle class="pt-dim" cx="332.6" cy="159.9" r="1.1"/>
+<circle class="pt-dim" cx="235" cy="149.2" r="1.1"/>
+<circle class="pt-dim" cx="275.6" cy="33.7" r="1.1"/>
+<circle class="pt-dim" cx="238.9" cy="53.5" r="1.1"/>
+<circle class="pt-dim" cx="264.1" cy="171.3" r="1.1"/>
+<circle class="pt-dim" cx="362.6" cy="102.1" r="1.1"/>
+<circle class="pt-dim" cx="361.4" cy="118.1" r="1.1"/>
+<circle class="pt-dim" cx="360.6" cy="86.1" r="1.1"/>
+<circle class="pt-dim" cx="356.7" cy="134" r="1.1"/>
+<circle class="pt-dim" cx="355" cy="70.2" r="1.1"/>
+<circle class="pt-dim" cx="249.4" cy="165.2" r="1.1"/>
+<circle class="pt-dim" cx="347.8" cy="150" r="1.1"/>
+<circle class="pt-dim" cx="280" cy="177.3" r="1.1"/>
+<circle class="pt-dim" cx="344.9" cy="54.2" r="1.1"/>
+<circle class="pt-dim" cx="291.3" cy="29.9" r="1.1"/>
+<circle class="pt-dim" cx="256.9" cy="37.5" r="1.1"/>
+<circle class="pt-dim" cx="310.5" cy="32.2" r="1.1"/>
+<circle class="pt-dim" cx="310.5" cy="175.8" r="1.1"/>
+<circle class="pt-dim" cx="332.1" cy="165.9" r="1.1"/>
+<circle class="pt-dim" cx="215.2" cy="111.2" r="1.1"/>
+<circle class="pt-dim" cx="215.3" cy="95.3" r="1.1"/>
+<circle class="pt-dim" cx="326.4" cy="38.3" r="1.1"/>
+<circle class="pt-dim" cx="218.4" cy="127.2" r="1.1"/>
+<circle class="pt-dim" cx="218.9" cy="79.3" r="1.1"/>
+<circle class="pt-dim" cx="225.6" cy="143.1" r="1.1"/>
+<circle class="pt-dim" cx="226.5" cy="63.3" r="1.1"/>
+<circle class="pt-dim" cx="238.2" cy="159.1" r="1.1"/>
+<circle class="pt-dim" cx="239.9" cy="47.4" r="1.1"/>
+<circle class="pt-dim" cx="292.8" cy="179.6" r="1.1"/>
+<circle class="pt-dim" cx="263.3" cy="175.1" r="1.1"/>
+<circle class="pt-dim" cx="267.7" cy="31.4" r="1.1"/>
+<circle class="pt-dim" cx="356.9" cy="140.1" r="1.1"/>
+<circle class="pt-dim" cx="345.4" cy="156.1" r="1.1"/>
+<circle class="pt-dim" cx="363.3" cy="124.1" r="1.1"/>
+<circle class="pt-dim" cx="323.9" cy="172" r="1.1"/>
+<circle class="pt-dim" cx="365.1" cy="92.2" r="1.1"/>
+<circle class="pt-dim" cx="360.8" cy="76.3" r="1.1"/>
+<circle class="pt-dim" cx="352.2" cy="60.3" r="1.1"/>
+<circle class="pt-dim" cx="337.1" cy="44.3" r="1.1"/>
+<circle class="pt-dim" cx="297.6" cy="28.4" r="1.1"/>
+<circle class="pt" cx="365.9" cy="108.2" r="1.6"/>
+<circle class="pt" cx="306.1" cy="178.1" r="1.6"/>
+<circle class="pt" cx="278.2" cy="178.9" r="1.6"/>
+<circle class="pt" cx="251" cy="169" r="1.6"/>
+<circle class="pt" cx="247.5" cy="41.3" r="1.6"/>
+<circle class="pt" cx="232.6" cy="153" r="1.6"/>
+<circle class="pt" cx="280.4" cy="29.1" r="1.6"/>
+<circle class="pt" cx="230.7" cy="57.3" r="1.6"/>
+<circle class="pt" cx="319.3" cy="34.5" r="1.6"/>
+<circle class="pt" cx="222.3" cy="137.1" r="1.6"/>
+<circle class="pt" cx="221.3" cy="73.2" r="1.6"/>
+<circle class="pt" cx="216.8" cy="121.1" r="1.6"/>
+<circle class="pt" cx="216.3" cy="89.2" r="1.6"/>
+<circle class="pt" cx="214.9" cy="105.1" r="1.6"/>
+<circle class="pt" cx="260.9" cy="35.2" r="1.6"/>
+<circle class="pt" cx="336.8" cy="162.1" r="1.6"/>
+<circle class="pt" cx="302.4" cy="30.7" r="1.6"/>
+<circle class="pt" cx="341.5" cy="50.4" r="1.6"/>
+<circle class="pt" cx="350.4" cy="146.2" r="1.6"/>
+<circle class="pt" cx="353.1" cy="66.4" r="1.6"/>
+<circle class="pt" cx="246.7" cy="162.9" r="1.6"/>
+<circle class="pt" cx="358.2" cy="130.2" r="1.6"/>
+<circle class="pt" cx="359.6" cy="82.3" r="1.6"/>
+<circle class="pt" cx="285" cy="176.6" r="1.6"/>
+<circle class="pt" cx="266.3" cy="172.8" r="1.6"/>
+<circle class="pt" cx="362" cy="114.3" r="1.6"/>
+<circle class="pt" cx="362.4" cy="98.3" r="1.6"/>
+<circle class="pt" cx="308" cy="174.3" r="1.6"/>
+<circle class="pt" cx="323.6" cy="168.2" r="1.6"/>
+<circle class="pt" cx="324.6" cy="40.5" r="1.6"/>
+<circle class="pt" cx="240.8" cy="51.2" r="1.6"/>
+<circle class="pt" cx="284" cy="32.9" r="1.6"/>
+<circle class="pt" cx="233.5" cy="146.9" r="1.6"/>
+<circle class="pt" cx="230.1" cy="67.1" r="1.6"/>
+<circle class="pt" cx="226" cy="131" r="1.6"/>
+<circle class="pt" cx="224.2" cy="83.1" r="1.6"/>
+<circle class="pt" cx="222.3" cy="115" r="1.6"/>
+<circle class="pt" cx="254.8" cy="45.1" r="1.6"/>
+<circle class="pt" cx="221.7" cy="99.1" r="1.6"/>
+<circle class="pt" cx="302.9" cy="36.7" r="1.6"/>
+<circle class="pt" cx="338.5" cy="152.3" r="1.6"/>
+<circle class="pt" cx="339" cy="56.5" r="1.6"/>
+<circle class="pt" cx="270.3" cy="39" r="1.6"/>
+<circle class="pt" cx="292.7" cy="170.5" r="1.6"/>
+<circle class="pt" cx="249.9" cy="156.8" r="1.6"/>
+<circle class="pt" cx="268.5" cy="166.7" r="1.6"/>
+<circle class="pt" cx="346.8" cy="136.3" r="1.6"/>
+<circle class="pt" cx="347.1" cy="72.5" r="1.6"/>
+<circle class="pt" cx="321.1" cy="46.6" r="1.6"/>
+<circle class="pt" cx="323.1" cy="158.3" r="1.6"/>
+<circle class="pt" cx="351.3" cy="120.3" r="1.6"/>
+<circle class="pt" cx="351.5" cy="88.4" r="1.6"/>
+<circle class="pt" cx="244" cy="61.1" r="1.6"/>
+<circle class="pt" cx="352.8" cy="104.4" r="1.6"/>
+<circle class="pt" cx="306.8" cy="164.4" r="1.6"/>
+<circle class="pt" cx="293.4" cy="42.8" r="1.6"/>
+<circle class="pt" cx="241.3" cy="140.9" r="1.6"/>
+<circle class="pt" cx="237.9" cy="77" r="1.6"/>
+<circle class="pt" cx="278.7" cy="160.6" r="1.6"/>
+<circle class="pt" cx="236.4" cy="124.9" r="1.6"/>
+<circle class="pt" cx="329.7" cy="62.6" r="1.6"/>
+<circle class="pt" cx="261" cy="55" r="1.6"/>
+<circle class="pt" cx="278.4" cy="48.9" r="1.6"/>
+<circle class="pt" cx="234.9" cy="93" r="1.6"/>
+<circle class="pt" cx="330.9" cy="142.4" r="1.6"/>
+<circle class="pt" cx="234.4" cy="108.9" r="1.6"/>
+<circle class="pt" cx="260" cy="150.7" r="1.6"/>
+<circle class="pt" cx="310.5" cy="52.7" r="1.6"/>
+<circle class="pt" cx="334.6" cy="78.5" r="1.6"/>
+<circle class="pt" cx="294.2" cy="154.5" r="1.6"/>
+<circle class="pt" cx="335.3" cy="126.4" r="1.6"/>
+<circle class="pt" cx="312.5" cy="148.5" r="1.6"/>
+<circle class="pt" cx="337" cy="94.5" r="1.6"/>
+<circle class="pt" cx="337.2" cy="110.5" r="1.6"/>
+<circle class="pt" cx="255.8" cy="70.9" r="1.6"/>
+<circle class="pt" cx="255.3" cy="134.8" r="1.6"/>
+<circle class="pt" cx="294.6" cy="58.8" r="1.6"/>
+<circle class="pt" cx="275.7" cy="144.7" r="1.6"/>
+<circle class="pt" cx="314.6" cy="68.7" r="1.6"/>
+<circle class="pt" cx="275.5" cy="64.9" r="1.6"/>
+<circle class="pt" cx="253" cy="86.9" r="1.6"/>
+<circle class="pt" cx="252.7" cy="118.8" r="1.6"/>
+<circle class="pt" cx="315.7" cy="132.5" r="1.6"/>
+<circle class="pt" cx="252" cy="102.9" r="1.6"/>
+<circle class="pt" cx="295.1" cy="138.6" r="1.6"/>
+<circle class="pt" cx="316.8" cy="84.6" r="1.6"/>
+<circle class="pt" cx="317.4" cy="116.5" r="1.6"/>
+<circle class="pt" cx="295.2" cy="74.7" r="1.6"/>
+<circle class="pt" cx="274" cy="128.7" r="1.6"/>
+<circle class="pt" cx="273.9" cy="80.8" r="1.6"/>
+<circle class="pt" cx="317.7" cy="100.6" r="1.6"/>
+<circle class="pt" cx="295.5" cy="122.6" r="1.6"/>
+<circle class="pt" cx="273.2" cy="112.7" r="1.6"/>
+<circle class="pt" cx="273.2" cy="96.8" r="1.6"/>
+<circle class="pt" cx="295.6" cy="90.7" r="1.6"/>
+<circle class="pt" cx="295.7" cy="106.7" r="1.6"/>
+<text class="s" x="290" y="206" text-anchor="middle">137.143° ＝ 2π·8/21</text>
+<circle class="disc" cx="476" cy="104" r="76"/>
+<circle class="pt-dim" cx="476" cy="103.6" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="106.7" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="100.6" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="109.7" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="97.5" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="112.7" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="94.5" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="115.8" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="91.5" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="118.8" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="88.4" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="121.9" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="85.4" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="124.9" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="82.3" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="127.9" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="79.3" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="131" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="76.3" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="134" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="73.2" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="137.1" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="70.2" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="140.1" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="67.1" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="143.1" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="64.1" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="146.2" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="61.1" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="149.2" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="58" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="152.3" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="55" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="155.3" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="51.9" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="158.3" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="48.9" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="161.4" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="45.9" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="164.4" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="42.8" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="167.5" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="39.8" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="170.5" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="36.7" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="173.5" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="33.7" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="176.6" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="30.7" r="1.1"/>
+<circle class="pt-dim" cx="476" cy="179.6" r="1.1"/>
+<circle class="pt-dim" cx="524.9" cy="162.1" r="1.1"/>
+<circle class="pt-dim" cx="534.1" cy="153" r="1.1"/>
+<circle class="pt-dim" cx="550.4" cy="119.6" r="1.1"/>
+<circle class="pt-dim" cx="540.7" cy="143.9" r="1.1"/>
+<circle class="pt-dim" cx="551.5" cy="95.3" r="1.1"/>
+<circle class="pt-dim" cx="545.5" cy="134.8" r="1.1"/>
+<circle class="pt-dim" cx="549.7" cy="122.6" r="1.1"/>
+<circle class="pt-dim" cx="538.7" cy="146.9" r="1.1"/>
+<circle class="pt-dim" cx="551.7" cy="110.5" r="1.1"/>
+<circle class="pt-dim" cx="516.6" cy="168.2" r="1.1"/>
+<circle class="pt-dim" cx="551.8" cy="98.3" r="1.1"/>
+<circle class="pt-dim" cx="528.3" cy="159.1" r="1.1"/>
+<circle class="pt-dim" cx="549.9" cy="86.1" r="1.1"/>
+<circle class="pt-dim" cx="419.2" cy="154.5" r="1.1"/>
+<circle class="pt-dim" cx="545.8" cy="74" r="1.1"/>
+<circle class="pt-dim" cx="495.9" cy="177.3" r="1.1"/>
+<circle class="pt-dim" cx="539.2" cy="61.8" r="1.1"/>
+<circle class="pt-dim" cx="544.1" cy="137.8" r="1.1"/>
+<circle class="pt-dim" cx="536.5" cy="150" r="1.1"/>
+<circle class="pt-dim" cx="548.8" cy="125.7" r="1.1"/>
+<circle class="pt-dim" cx="551.4" cy="113.5" r="1.1"/>
+<circle class="pt-dim" cx="552" cy="101.3" r="1.1"/>
+<circle class="pt-dim" cx="400.1" cy="99.8" r="1.1"/>
+<circle class="pt-dim" cx="550.5" cy="89.2" r="1.1"/>
+<circle class="pt-dim" cx="504.9" cy="174.3" r="1.1"/>
+<circle class="pt-dim" cx="428.9" cy="163.7" r="1.1"/>
+<circle class="pt-dim" cx="549.1" cy="83.1" r="1.1"/>
+<circle class="pt-dim" cx="400.4" cy="112" r="1.1"/>
+<circle class="pt-dim" cx="547" cy="77" r="1.1"/>
+<circle class="pt-dim" cx="544.4" cy="70.9" r="1.1"/>
+<circle class="pt-dim" cx="402.7" cy="124.1" r="1.1"/>
+<circle class="pt-dim" cx="541.1" cy="64.9" r="1.1"/>
+<circle class="pt-dim" cx="521.1" cy="165.2" r="1.1"/>
+<circle class="pt-dim" cx="462.9" cy="178.9" r="1.1"/>
+<circle class="pt-dim" cx="537.1" cy="58.8" r="1.1"/>
+<circle class="pt-dim" cx="407.2" cy="136.3" r="1.1"/>
+<circle class="pt-dim" cx="542.5" cy="140.9" r="1.1"/>
+<circle class="pt-dim" cx="534.7" cy="55.7" r="1.1"/>
+<circle class="pt-dim" cx="532.1" cy="52.7" r="1.1"/>
+<circle class="pt-dim" cx="424.5" cy="48.1" r="1.1"/>
+<circle class="pt-dim" cx="529.1" cy="49.7" r="1.1"/>
+<circle class="pt-dim" cx="418.6" cy="54.2" r="1.1"/>
+<circle class="pt-dim" cx="525.8" cy="46.6" r="1.1"/>
+<circle class="pt-dim" cx="547.9" cy="128.7" r="1.1"/>
+<circle class="pt-dim" cx="413.8" cy="60.3" r="1.1"/>
+<circle class="pt-dim" cx="414.4" cy="148.5" r="1.1"/>
+<circle class="pt-dim" cx="522.1" cy="43.6" r="1.1"/>
+<circle class="pt-dim" cx="517.8" cy="40.5" r="1.1"/>
+<circle class="pt-dim" cx="410" cy="66.4" r="1.1"/>
+<circle class="pt-dim" cx="512.8" cy="37.5" r="1.1"/>
+<circle class="pt-dim" cx="506.7" cy="34.5" r="1.1"/>
+<circle class="pt-dim" cx="498.5" cy="31.4" r="1.1"/>
+<circle class="pt-dim" cx="406.9" cy="72.5" r="1.1"/>
+<circle class="pt-dim" cx="483.6" cy="28.4" r="1.1"/>
+<circle class="pt" cx="551" cy="116.5" r="1.6"/>
+<circle class="pt" cx="459.1" cy="29.9" r="1.6"/>
+<circle class="pt" cx="449" cy="32.9" r="1.6"/>
+<circle class="pt" cx="442.1" cy="36" r="1.6"/>
+<circle class="pt" cx="443.7" cy="172.8" r="1.6"/>
+<circle class="pt" cx="436.6" cy="39" r="1.6"/>
+<circle class="pt" cx="404.4" cy="78.5" r="1.6"/>
+<circle class="pt" cx="432" cy="42.1" r="1.6"/>
+<circle class="pt" cx="402.5" cy="84.6" r="1.6"/>
+<circle class="pt" cx="552" cy="104.4" r="1.6"/>
+<circle class="pt" cx="551.1" cy="92.2" r="1.6"/>
+<circle class="pt" cx="400.3" cy="96.8" r="1.6"/>
+<circle class="pt" cx="548.1" cy="80.1" r="1.6"/>
+<circle class="pt" cx="531.4" cy="156.1" r="1.6"/>
+<circle class="pt" cx="400.2" cy="108.9" r="1.6"/>
+<circle class="pt" cx="428" cy="45.1" r="1.6"/>
+<circle class="pt" cx="542.9" cy="67.9" r="1.6"/>
+<circle class="pt" cx="401.9" cy="121.1" r="1.6"/>
+<circle class="pt" cx="421.4" cy="51.2" r="1.6"/>
+<circle class="pt" cx="405.9" cy="133.3" r="1.6"/>
+<circle class="pt" cx="511.4" cy="171.3" r="1.6"/>
+<circle class="pt" cx="416.1" cy="57.3" r="1.6"/>
+<circle class="pt" cx="422.1" cy="157.6" r="1.6"/>
+<circle class="pt" cx="412.3" cy="145.4" r="1.6"/>
+<circle class="pt" cx="411.8" cy="63.3" r="1.6"/>
+<circle class="pt" cx="546.8" cy="131.7" r="1.6"/>
+<circle class="pt" cx="408.3" cy="69.4" r="1.6"/>
+<circle class="pt" cx="405.5" cy="75.5" r="1.6"/>
+<circle class="pt" cx="451.1" cy="175.8" r="1.6"/>
+<circle class="pt" cx="403.4" cy="81.6" r="1.6"/>
+<circle class="pt" cx="551.9" cy="107.4" r="1.6"/>
+<circle class="pt" cx="401.8" cy="87.7" r="1.6"/>
+<circle class="pt" cx="433" cy="166.7" r="1.6"/>
+<circle class="pt" cx="400.7" cy="93.7" r="1.6"/>
+<circle class="pt" cx="400" cy="105.9" r="1.6"/>
+<circle class="pt" cx="401.3" cy="118.1" r="1.6"/>
+<circle class="pt" cx="410.4" cy="142.4" r="1.6"/>
+<circle class="pt" cx="404.7" cy="130.2" r="1.6"/>
+<circle class="pt" cx="401.2" cy="90.7" r="1.6"/>
+<circle class="pt" cx="416.7" cy="151.5" r="1.6"/>
+<circle class="pt" cx="400" cy="102.9" r="1.6"/>
+<circle class="pt" cx="408.7" cy="139.3" r="1.6"/>
+<circle class="pt" cx="400.8" cy="115" r="1.6"/>
+<circle class="pt" cx="403.6" cy="127.2" r="1.6"/>
+<circle class="pt" cx="437.9" cy="169.7" r="1.6"/>
+<circle class="pt" cx="425.3" cy="160.6" r="1.6"/>
+<circle class="pt" cx="476" cy="29.1" r="1.6"/>
+<circle class="pt" cx="476" cy="178.1" r="1.6"/>
+<circle class="pt" cx="476" cy="32.2" r="1.6"/>
+<circle class="pt" cx="476" cy="175.1" r="1.6"/>
+<circle class="pt" cx="476" cy="35.2" r="1.6"/>
+<circle class="pt" cx="476" cy="172" r="1.6"/>
+<circle class="pt" cx="476" cy="38.3" r="1.6"/>
+<circle class="pt" cx="476" cy="169" r="1.6"/>
+<circle class="pt" cx="476" cy="41.3" r="1.6"/>
+<circle class="pt" cx="476" cy="165.9" r="1.6"/>
+<circle class="pt" cx="476" cy="44.3" r="1.6"/>
+<circle class="pt" cx="476" cy="162.9" r="1.6"/>
+<circle class="pt" cx="476" cy="47.4" r="1.6"/>
+<circle class="pt" cx="476" cy="159.9" r="1.6"/>
+<circle class="pt" cx="476" cy="50.4" r="1.6"/>
+<circle class="pt" cx="476" cy="156.8" r="1.6"/>
+<circle class="pt" cx="476" cy="53.5" r="1.6"/>
+<circle class="pt" cx="476" cy="153.8" r="1.6"/>
+<circle class="pt" cx="476" cy="56.5" r="1.6"/>
+<circle class="pt" cx="476" cy="150.7" r="1.6"/>
+<circle class="pt" cx="476" cy="59.5" r="1.6"/>
+<circle class="pt" cx="476" cy="147.7" r="1.6"/>
+<circle class="pt" cx="476" cy="62.6" r="1.6"/>
+<circle class="pt" cx="476" cy="144.7" r="1.6"/>
+<circle class="pt" cx="476" cy="65.6" r="1.6"/>
+<circle class="pt" cx="476" cy="141.6" r="1.6"/>
+<circle class="pt" cx="476" cy="68.7" r="1.6"/>
+<circle class="pt" cx="476" cy="138.6" r="1.6"/>
+<circle class="pt" cx="476" cy="71.7" r="1.6"/>
+<circle class="pt" cx="476" cy="135.5" r="1.6"/>
+<circle class="pt" cx="476" cy="74.7" r="1.6"/>
+<circle class="pt" cx="476" cy="132.5" r="1.6"/>
+<circle class="pt" cx="476" cy="77.8" r="1.6"/>
+<circle class="pt" cx="476" cy="129.5" r="1.6"/>
+<circle class="pt" cx="476" cy="80.8" r="1.6"/>
+<circle class="pt" cx="476" cy="126.4" r="1.6"/>
+<circle class="pt" cx="476" cy="83.9" r="1.6"/>
+<circle class="pt" cx="476" cy="123.4" r="1.6"/>
+<circle class="pt" cx="476" cy="86.9" r="1.6"/>
+<circle class="pt" cx="476" cy="120.3" r="1.6"/>
+<circle class="pt" cx="476" cy="89.9" r="1.6"/>
+<circle class="pt" cx="476" cy="117.3" r="1.6"/>
+<circle class="pt" cx="476" cy="93" r="1.6"/>
+<circle class="pt" cx="476" cy="114.3" r="1.6"/>
+<circle class="pt" cx="476" cy="96" r="1.6"/>
+<circle class="pt" cx="476" cy="111.2" r="1.6"/>
+<circle class="pt" cx="476" cy="99.1" r="1.6"/>
+<circle class="pt" cx="476" cy="108.2" r="1.6"/>
+<circle class="pt" cx="476" cy="102.1" r="1.6"/>
+<circle class="pt" cx="476" cy="105.1" r="1.6"/>
+<text class="s" x="476" y="206" text-anchor="middle">90° ＝ 2π/4</text>
+</svg>
+      </div>
+      <figcaption>
+        同样 200 个方向，只改变方位角的步长。左：黄金角，分布均匀，看不出规则结构。
+        中：2π·8/21，与黄金角只差 0.36°，却因方位角的周期只有 21 而显出纵向条纹。
+        右：2π/4，方位角只剩 4 个取值，退化为 4 条经线。
+      </figcaption>
+    </figure>
+
+    <p>
+      中图与左图只差 0.36°。取 8/21 并非随意：它是黄金角的连分数收敛项，
+      即分母不超过 21 的有理数中最接近黄金角的那个。常用的近似值 137.5° 记为分数是
+      2π·55/144，周期为 144，因此点数不超过 144 时看不出差别 ——
+      这只是余量，不是可以随意取整的理由。
+    </p>
+
+    <p>把点按序号依次生成，可以看到点是一层层铺开的：</p>
+
+    <figure class="fig">
+      <img class="doc-img fit" src="img/fibonacci-spiral.gif" alt="动画：150 个方向按序号依次出现在球面上，每一步方位角转过黄金角，最终均匀铺满整个球面。">
+      <figcaption>
+        球面斐波那契序列的生成过程。第 i 步的极角由 z 等分给出，方位角增加 137.50776°。
+        任何时刻已生成的点在已覆盖的范围内都保持均匀，不会先聚成一团再散开。
+      </figcaption>
+    </figure>
+
+    <h4>合成方向</h4>
+
+    <p>两个坐标合起来，第 i 个方向在球坐标下为：</p>
+
+    <div class="math">
+      <span class="v">z<sub>i</sub></span> = 1 −
+      <span class="frac"><span class="n">2<span class="v">i</span> + 1</span><span class="d"><span class="v">N</span></span></span>
+      &nbsp;&nbsp;&nbsp;
+      φ<sub><span class="v">i</span></sub> = 2π ·
+      <span class="frac"><span class="n"><span class="v">i</span></span><span class="d">φ</span></span>
+    </div>
+
+    <p>再转为直角坐标：</p>
+
+    <div class="math">
+      <b>p</b><sub><span class="v">i</span></sub> =
+      ( √(1 − <span class="v">z<sub>i</sub></span><sup>2</sup>) · cos φ<sub><span class="v">i</span></sub>,&nbsp;
+        √(1 − <span class="v">z<sub>i</sub></span><sup>2</sup>) · sin φ<sub><span class="v">i</span></sub>,&nbsp;
+        <span class="v">z<sub>i</sub></span> )
+    </div>
+
+    <p>仓库中的实现（<code>rtxgi-sdk/shaders/Common.hlsl:55-63</code>）：</p>
+
+    <pre>float3 RTXGISphericalFibonacci(float sampleIndex, float numSamples)
+{
+    const float b = (sqrt(5.f) * 0.5f + 0.5f) - 1.f;   <span class="c">// 1/φ ≈ 0.618034</span>
+    float phi = RTXGI_2PI * frac(sampleIndex * b);      <span class="c">// 方位角，每步 +2π/φ</span>
+    float cosTheta = 1.f - (2.f * sampleIndex + 1.f) * (1.f / numSamples);
+    float sinTheta = sqrt(saturate(1.f - (cosTheta * cosTheta)));
+
+    return float3((cos(phi) * sinTheta), (sin(phi) * sinTheta), cosTheta);
+}</pre>
+
+    <p>逐项对应：</p>
+
+    <ul>
+      <li>
+        <code>sqrt(5.f) * 0.5f + 0.5f</code> 即 φ，减 1 得到
+        <code>b</code> = 1/φ ≈ 0.6180339887。
+      </li>
+      <li>
+        <code>frac(sampleIndex * b)</code> 取小数部分，等价于对 2π 取模，得到方位角。
+      </li>
+      <li>
+        <code>cosTheta</code> 就是上面的 <span class="fx v">z</span>；
+        这样命名是因为 <span class="fx v">z</span> = cos&thinsp;θ。
+      </li>
+      <li>
+        <code>sinTheta</code> = √(1 − <span class="fx v">z</span>²)，
+        即该层在 xy 平面上的半径。
+      </li>
+      <li>返回值为标准球坐标转直角坐标，极轴取 z 轴。结果已是单位向量。</li>
+    </ul>
+
+    <p>
+      代码用的是 1/φ 而不是 1/φ²，步长为 2π/φ ≈ 222.49°。
+      由于 1/φ + 1/φ² = 1，两者只差一个符号：得到的是同一组点，绕行方向相反。
+    </p>
+
+    <h4>一次更新投射多少条光线</h4>
+
+    <p>
+      光线数量由编译期宏 <code>RTXGI_DDGI_BLEND_RAYS_PER_PROBE</code> 指定，
+      无默认值。文档中的内存计算示例使用 256 与 128；Test Harness 的 Cornell 场景使用 256。
+    </p>
+    <p class="src">
+      来源：docs/DDGIVolume.md:380-381、617、634；samples/test-harness/config/cornell.ini:97
+    </p>
+
+    <h4>固定光线</h4>
+
+    <p>
+      另有 <code>RTXGI_DDGI_NUM_FIXED_RAYS</code>，默认为 32。
+      其中一部分光线的方向固定不变，不参与 irradiance 混合，专门用于 relocation 与
+      classification 的稳定性判断，详见第 13 章。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/include/Common.hlsl:39；docs/DDGIVolume.md:761-767</p>
+
+    <p>
+      两类光线各用一套独立的斐波那契序列，而不是从同一套中取前 32 个：
+      固定光线按 <code>RTXGISphericalFibonacci(rayIndex, 32)</code> 生成，
+      其余光线按 <code>RTXGISphericalFibonacci(rayIndex − 32, probeNumRays − 32)</code> 生成。
+      随后只有非固定光线会被一个每次更新都变化的随机旋转作用，
+      使多次更新累积的结果覆盖到比单帧更多的方向。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/include/ProbeRayCommon.hlsl:113-134</p>
+
+    <figure class="fig">
+      <img class="doc-img fit" src="img/fixed-rays.gif" alt="32 条固定光线在单位球面上的分布动画。">
+      <figcaption>
+        默认 32 条固定光线在单位球面上的分布。固定光线与其余探针光线使用相同的球面斐波那契分布，
+        区别在于它们的方向在每次更新时都不变。
+      </figcaption>
+      <p class="src">来源：docs/images/ddgivolume-fixedRays.gif；docs/DDGIVolume.md:767</p>
+    </figure>
+
+    <h4>每次更新随机旋转</h4>
+
+    <p>
+      固定光线以外的光线，方向在每次更新时都会被一个随机旋转整体转过去。
+      旋转量在 <code>DDGIVolume::Update()</code> 中重新生成
+      （<code>DDGIVolume.cpp:104-110</code>）：取三个均匀随机数，
+      按 James Arvo 在 Graphics Gems 3 中给出的方法构造旋转矩阵，
+      所得旋转在 SO(3) 上均匀分布。
+    </p>
+    <p class="src">
+      来源：rtxgi-sdk/src/ddgi/DDGIVolume.cpp:440-482；docs/DDGIVolume.md:665-671
+    </p>
+
+    <p>
+      需要这一步，是因为斐波那契序列是<b>确定性求积规则</b>，而不是随机采样。
+      若每次更新都用同一组方向，那么由方向选取带来的积分误差就是一个固定的系统性偏差，
+      时间累积无法把它平均掉 —— 累积只会让这个偏差稳定下来。
+      把整组方向随机转过后，每次更新的偏差方向不同，多帧之间才有机会相互抵消。
+    </p>
+
+    <p>
+      时间累积的等效窗口约为 1/(1 − h) 次更新，h = 0.97 时约 33 次（见第 11 章）。
+      也就是说，参与平均的方向数量约为单帧的 33 倍。
+    </p>
+
+    <figure class="fig">
+      <img class="doc-img fit" src="img/probe-ray-rotation.gif" alt="动画：连续五次更新中探针光线方向的变化。橙色为 32 条固定光线，位置始终不变；深色为当前这次更新的非固定光线，每次更新整体换一个朝向；浅灰为之前各次更新的方向。">
+      <figcaption>
+        连续五次更新。橙色是 32 条固定光线，位置始终不变；深色是当前这次更新的
+        224 条非固定光线，每次更新整体换一个朝向；浅灰是之前各次更新的方向。
+        橙色点一直不动，深色点在跳，而浅灰点逐次铺满球面 ——
+        这正是旋转的目的：让累积覆盖的方向比单帧多得多。
+      </figcaption>
+    </figure>
+
+    <p>
+      若 relocation 与 classification 都未启用，则不存在固定光线，
+      所有光线的方向都会被旋转（<code>ProbeRayCommon.hlsl:119-124</code>）。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">职责边界</span>
+      <p>
+        光线追踪本身不由 DDGI SDK 实现。SDK 只规定从哪个探针、沿哪些方向投射光线；
+        实际的光线求交与命中着色由宿主渲染器使用其自身的加速结构与着色器完成。
+      </p>
+      <p>
+        这也是 <code>DDGIVolume_D3D12.cpp</code>（1778 行）中不含算法的原因 ——
+        该文件是图形 API 的管线代码。
+      </p>
+      <p class="src">来源：docs/Integration.md:56-72</p>
+    </div>
+
+    <div class="selftest" data-id="st-9">
+      <input type="checkbox" class="cb" id="cb-st-9">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明探针光线的两种结果，以及 SDK 与宿主渲染器在光线追踪上的分工。</p>
+      </div>
+    </div>
+
+    <h3>从 radiance 积分出 irradiance</h3>
+
+    <p>
+      得到 N 条光线的 radiance <span class="fx v">L<sub>i</sub></span> 与方向
+      <span class="fx v">ω<sub>i</sub></span> 后，需要把它们累积成球面上的函数。
+    </p>
+
+    <p>
+      对球面上的每个方向 <span class="fx v">ω<sub>t</sub></span>，
+      它代表「表面法线朝向该方向」的情形。该方向对第 i 条光线的权重为：
+    </p>
+
+    <div class="math">
+      <span class="v">w<sub>i</sub></span> = max(0, &nbsp;
+      <span class="v">ω<sub>i</sub></span> · <span class="v">ω<sub>t</sub></span>)
+    </div>
+
+    <p>
+      即光线方向与该方向夹角的余弦。累积量为
+      Σ(<span class="fx v">L<sub>i</sub></span>·<span class="fx v">w<sub>i</sub></span>)
+      与 Σ<span class="fx v">w<sub>i</sub></span>，最后相除。
+    </p>
+
+    <h3>除以 Σw 而非除以 N</h3>
+
+    <p>
+      待求量为 <span class="fx v">E</span> = ∫ <span class="fx v">L</span>·cos
+      <span class="op">d</span><span class="fx v">ω</span>。
+      采用蒙特卡洛估计，均匀采样 N 个方向，概率密度
+      <span class="fx v">pdf</span> = 1/(2π)（半球总立体角为 2π）：
+    </p>
+
+    <div class="math">
+      <span class="v">E</span> ≈
+      <span class="frac"><span class="n">1</span><span class="d"><span class="v">N</span></span></span>
+      Σ
+      <span class="frac"><span class="n"><span class="v">L<sub>i</sub></span> cos<sub>i</sub></span><span class="d"><span class="v">pdf</span></span></span>
+      =
+      <span class="frac"><span class="n">2π</span><span class="d"><span class="v">N</span></span></span>
+      Σ <span class="v">L<sub>i</sub></span> cos<sub>i</sub>
+    </div>
+
+    <p>
+      这些方向如何排布进二维纹理，见第 05 章。该式与
+      <code>docs/Math.md</code> 中的方程 3 一致，
+      也是代码在读取时需要乘回 2π 的原因（<code>Irradiance.hlsl:195</code>）。
+    </p>
+
+    <p>
+      严格来说每个方向应存储 (1/N)·Σ(<span class="fx v">L<sub>i</sub></span> cos<sub>i</sub>)。
+      但 N 是固定的，cos 随方向变化。DDGI 做了如下替换：半球上均匀分布方向的余弦平均值为 1/2，因此
+    </p>
+
+    <div class="math">
+      <span class="frac"><span class="n">1</span><span class="d"><span class="v">N</span></span></span>
+      Σ cos<sub>i</sub> ≈
+      <span class="frac"><span class="n">1</span><span class="d">2</span></span>
+      &nbsp;&nbsp;⟹&nbsp;&nbsp;
+      2 Σ cos<sub>i</sub> ≈ <span class="v">N</span>
+    </div>
+
+    <p>于是分母 N 可替换为 2Σcos<sub>i</sub>：</p>
+
+    <div class="math">
+      <span class="frac">
+        <span class="n">Σ (<span class="v">L<sub>i</sub></span> cos<sub>i</sub>)</span>
+        <span class="d">2 Σ cos<sub>i</sub></span>
+      </span>
+      &nbsp;≈&nbsp;
+      <span class="frac"><span class="n">1</span><span class="d"><span class="v">N</span></span></span>
+      Σ (<span class="v">L<sub>i</sub></span> cos<sub>i</sub>)
+    </div>
+
+    <p>
+      这样做的收益是分母具有自适应性：某个方向上采样较少时（Σcos 小），分母同步减小，
+      不会因采样不足而系统性偏暗。
+    </p>
+
+    <p>代码注释对此的说明（<code>ProbeBlendingCS.hlsl:496-498</code>）：</p>
+
+    <blockquote>
+      <p>
+        To match the Monte Carlo Estimator of Irradiance, we should divide by N.
+        Instead, we are dividing by sum(cos(theta)) to reduce variance.
+        To account for this, we must multiply in a factor of 1/2.
+      </p>
+    </blockquote>
+
+    <div class="note-box">
+      <span class="tag">距离图的额外因子</span>
+      <p>
+        距离图采用普通平均，理论上不应除以 cos 权重。但代码为避免增加分支，
+        同样除以了 2（<code>ProbeBlendingCS.hlsl:499-502</code>）。
+      </p>
+      <p>
+        因此读取距离值需要乘回 2 —— 这是 <code>Irradiance.hlsl:138</code> 中
+        <code>2.f *</code> 的来源。
+      </p>
+      <p>
+        这类为减少 GPU 分支而牺牲可读性的写法在该代码库中多处出现。
+        遇到与推导不符的常数时，对应注释通常会给出解释。
+      </p>
+    </div>
+
+    <div class="selftest" data-id="st-10">
+      <input type="checkbox" class="cb" id="cb-st-10">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明 2π 的来源、除以 Σcos 而非 N 的理由、以及距离值为何需要乘回 2。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 ================= -->
+  <section class="ch" id="ch-5" data-chapter="05 · 八面体映射">
+    <div class="ch-head">
+      <span class="ch-num">第 05 章</span>
+      <h2>球面参数化：八面体映射</h2>
+    </div>
+
+    <p>
+      探针需要为每个方向存储一个数值，即存储一个定义在球面上的函数。
+      GPU 纹理是二维的，因此需要先把球面参数化到平面上。
+    </p>
+
+    <p>
+      DDGI 采用<b>八面体映射</b>。该映射由两步复合而成：
+      先把方向向量径向投影到正八面体表面，再把八面体展开为正方形。
+    </p>
+    <figure class="fig">
+      <div class="fig-scroll"><img class="doc-img" src="img/octahedral-param.jpg" alt="三联图：球面、正八面体、正方形上的展开结果，三者用相同配色标出对应的八个八分体。"></div>
+      <figcaption>球面 → 正八面体 → 正方形。三个阶段的配色一一对应：上半球的四个面在正方形中拼成中心的菱形，下半球的四个面翻折到四个角上。</figcaption><p class="lightbox-hint">来源：docs/images/ddgivolume-octahedral-param.jpg</p>
+    </figure>
+
+    <h3>5.1 第一步：径向投影到正八面体</h3>
+
+    <p>
+      这一步与 L1 范数有关。单位球面有两种定义：
+    </p>
+    <ul>
+      <li>L2 单位球：<span class="fx">|<b>n</b>|<sub>2</sub> = √(x²+y²+z²) = 1</span>，即通常所说的球面。</li>
+      <li>
+        L1 单位球：<span class="fx">|<b>n</b>|<sub>1</sub> = |x|+|y|+|z| = 1</span>，
+        <b>其表面即正八面体</b>。
+      </li>
+    </ul>
+
+    <p>因此按 L1 范数归一化，几何上等同于求自原点出发的射线与八面体表面的交点：</p>
+
+    <div class="math">
+      <b>p</b> =
+      <span class="frac">
+        <span class="n"><b>n</b></span>
+        <span class="d">|<span class="v">n</span><sub>x</sub>| + |<span class="v">n</span><sub>y</sub>| + |<span class="v">n</span><sub>z</sub>|</span>
+      </span>
+    </div>
+
+    <p>
+      该映射是双射：每个方向对应八面体表面唯一一点，反之亦然。
+      八面体共 8 个面，每个面对应一个八分体（octant）。
+    </p>
+
+    <pre>float l1norm = abs(direction.x) + abs(direction.y) + abs(direction.z);
+float2 uv = direction.xy * (1.f / l1norm);</pre>
+
+    <p>
+      代码只取 <span class="fx v">x</span>、<span class="fx v">y</span> 两个分量。
+      由于投影点满足 <span class="fx">|x|+|y|+|z| = 1</span>，
+      <span class="fx v">z</span> 可由前两者推出，是冗余的。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/include/ProbeOctahedral.hlsl:64-73</p>
+
+    <h3>5.2 第二步：展开为正方形</h3>
+
+    <p>八面体的 8 个面均为等边三角形。将其剪开摊平到正方形 <span class="fx">[-1,1]²</span>：</p>
+    <ul>
+      <li>
+        <span class="fx v">z</span> &gt; 0 的 4 个面保留 <span class="fx">(x, y)</span> 坐标，
+        拼合成中心的菱形 <span class="fx">|u| + |v| ≤ 1</span>。
+      </li>
+      <li><span class="fx v">z</span> &lt; 0 的 4 个面翻折到正方形的四个角上。</li>
+    </ul>
+
+    <p>翻折所用公式为：</p>
+
+    <div class="math">
+      (<span class="v">u</span>, <span class="v">v</span>) =
+      ( (1 − |<span class="v">p<sub>y</sub></span>|)·sgn(<span class="v">p<sub>x</sub></span>),
+      &nbsp;(1 − |<span class="v">p<sub>x</sub></span>|)·sgn(<span class="v">p<sub>y</sub></span>) )
+    </div>
+
+    <pre>uv = (1.f - abs(uv.yx)) * RTXGISignNotZero(uv.xy);</pre>
+
+    <p>
+      <code>uv.yx</code> 为分量交换（swizzle），故第一项取到的是
+      <span class="fx">|<span class="v">p<sub>y</sub></span>|</span>。
+    </p>
+
+    <h4>该公式的几何含义</h4>
+
+    <p>
+      以 (+,+) 八分体为例，该公式即关于直线 <span class="fx v">u</span> +
+      <span class="fx v">v</span> = 1 的<b>镜像反射</b>。
+      平面上将点 <span class="fx">(a, b)</span> 关于直线
+      <span class="fx">x + y = 1</span> 反射，结果正是
+      <span class="fx">(1 − b, 1 − a)</span>。
+    </p>
+
+    <h4>为何必须取该形式</h4>
+
+    <p>
+      反射是唯一能保证接缝处不产生方向跳变的选择。验证如下：
+      接缝处 <span class="fx v">z</span> = 0，此时
+      <span class="fx">|<span class="v">p<sub>x</sub></span>| + |<span class="v">p<sub>y</sub></span>| = 1</span>，
+      于是
+    </p>
+
+    <div class="math">
+      1 − |<span class="v">p<sub>y</sub></span>| = |<span class="v">p<sub>x</sub></span>|
+      &nbsp;&nbsp;⟹&nbsp;&nbsp;
+      (1 − |<span class="v">p<sub>y</sub></span>|)·sgn(<span class="v">p<sub>x</sub></span>) =
+      <span class="v">p<sub>x</sub></span>
+    </div>
+
+    <p>
+      即翻折公式在接缝处退化为恒等式，与上半球分支给出相同结果。
+      因此映射在整个定义域上方向连续（C⁰），跨接缝采样不产生跳变。
+    </p>
+    <figure class="fig">
+      <div class="fig-scroll"><img class="doc-img" src="img/octahedral-border.png" alt="三幅图说明探针纹理的 1 纹素边界：前半球与后半球的八面体覆盖范围，以及边界纹素如何被复制。"></div>
+      <figcaption>方向连续并不等于采样连续。图中的红框是实际使用的纹素范围，框外一圈为边界纹素。右图用字母标出了边界纹素的复制方式 —— 相邻纹素被复制到框外，使硬件双线性过滤在靠近接缝时仍能取到正确的值。</figcaption><p class="lightbox-hint">来源：docs/images/ddgivolume-octahedral-border.png</p>
+    </figure>
+
+    <h3>5.3 逆映射</h3>
+
+    <p>反向操作把正方形上的点还原为方向：</p>
+
+    <pre>float3 direction = float3(coords.x, coords.y, 1.f - abs(coords.x) - abs(coords.y));
+if (direction.z &lt; 0.f)
+{
+    direction.xy = (1.f - abs(direction.yx)) * RTXGISignNotZero(direction.xy);
+}
+return normalize(direction);</pre>
+
+    <ol>
+      <li>
+        由 <span class="fx">(u, v)</span> 重建八面体上的点，
+        <span class="fx v">z</span> = 1 − |<span class="fx v">u</span>| − |<span class="fx v">v</span>|。
+      </li>
+      <li>
+        若 <span class="fx v">z</span> &lt; 0，该点落在角上的三角形内，
+        用同一反射公式折回下半球。
+      </li>
+      <li><code>normalize()</code> 把八面体表面的点投影回球面。</li>
+    </ol>
+
+    <p>
+      第 2 步与正映射使用同一公式，因为镜像反射是对合变换（连续应用两次回到原处）。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/include/ProbeOctahedral.hlsl:49-57</p>
+
+    <h3>5.4 面积畸变</h3>
+
+    <p>
+      任何球面到平面的参数化都必然引入畸变，八面体映射也不例外。
+      原因可以直接看出：八面体的面是等边三角形（边长 √2），
+      而展开到平面上得到的是等腰直角三角形（直角边 1）。
+      等边三角形无法等距地展平到平面上。
+    </p>
+
+    <p>畸变的度量是参数化的雅可比行列式：</p>
+
+    <div class="math">
+      <span class="v">J</span>(<span class="v">u</span>, <span class="v">v</span>) =
+      ‖
+      <span class="frac">
+        <span class="n">∂<b>n</b></span>
+        <span class="d">∂<span class="v">u</span></span>
+      </span>
+      ×
+      <span class="frac">
+        <span class="n">∂<b>n</b></span>
+        <span class="d">∂<span class="v">v</span></span>
+      </span>
+      ‖
+    </div>
+
+    <p>它表示参数平面上单位面积对应球面上多少立体角。数值结果如下：</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>位置</th><th>J</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">(0, 0) 面心</td><td class="num">1</td><td>取到最小值。此处球面与八面体面相切</td></tr>
+          <tr><td class="mono">(1, 0) 菱形顶点</td><td class="num">1</td><td>同样取到最小值</td></tr>
+          <tr><td class="mono">(⅓, ⅓) 三角形重心</td><td class="num">3√3 ≈ 5.196</td><td>取到最大值</td></tr>
+          <tr><td class="mono">单个八分体三角形均值</td><td class="num">π ≈ 3.142</td><td>(π/2) ÷ (1/2)：球面八分体面积除以参数三角形面积</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      重心处的值可手算验证：<span class="fx"><b>p</b> = (⅓, ⅓, ⅓)</span>，
+      <span class="fx">|<b>p</b>| = 1/√3</span>，两个偏导数形式相同，
+      叉积模长为 <span class="fx">√27 = 3√3</span>。
+    </p>
+
+    <h4>与其他参数化的对比</h4>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>参数化方式</th><th>J 的范围</th><th>max / min</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>八面体映射</td><td class="num">[1, 3√3]</td><td class="num">3√3 ≈ 5.20</td></tr>
+          <tr><td>Cube map</td><td class="num">[√3/9, 1]</td><td class="num">3√3 ≈ 5.20</td></tr>
+          <tr><td>等距柱状投影</td><td class="num">(0, 1]</td><td>无界（两极趋近 0）</td></tr>
+        </tbody>
+      </table>
+      <p class="src">作者计算，未见于仓库文档。</p>
+    </div>
+
+    <div class="note-box">
+      <span class="tag">需要更正的一个常见说法</span>
+      <p>
+        「八面体映射的面积畸变比 Cube map 小」并不成立。
+        两者的畸变比值相同，均为 3√3。
+      </p>
+      <p>
+        八面体映射的实际优势在下一节，与畸变无关。
+      </p>
+    </div>
+
+    <h3>5.5 该映射的实际优势</h3>
+
+    <p>既然畸变不占优势，选择它的理由有以下三点：</p>
+
+    <ol>
+      <li>
+        <b>单张纹理、单条接缝。</b>
+        Cube map 由 6 张面组成，面与面之间有 12 条边，
+        硬件双线性过滤无法跨越面边界，需要额外的接缝修补（seam fixing）。
+        八面体映射只有菱形边界这一条缝。
+      </li>
+      <li>
+        <b>接缝处方向连续。</b>
+        4.2 节已证明反射公式在接缝处退化为恒等式，因此跨缝采样不产生方向跳变。
+      </li>
+      <li>
+        <b>编码开销低。</b>
+        整个映射是若干 ALU 指令加一个 <code>z &lt; 0</code> 分支。
+        Cube map 需要判断主轴并处理 6 种情况，分支开销更高。
+      </li>
+    </ol>
+
+    <p>
+      换言之，八面体映射换取的是实现上的简洁，而非数学上的最优。
+      在畸变这一指标上它与 Cube map 持平。
+    </p>
+
+    <div class="selftest" data-id="st-4">
+      <input type="checkbox" class="cb" id="cb-st-4">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">
+          能说明 L1 归一化的几何含义、展开公式为何是反射、以及八面体映射相对 Cube map 的实际优势。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 06 ================= -->
+  <section class="ch" id="ch-6" data-chapter="06 · 探针网格与插值">
+    <div class="ch-head">
+      <span class="ch-num">第 06 章</span>
+      <h2>探针网格与插值</h2>
+    </div>
+
+    <p>
+      单个探针不足以描述整个场景 —— irradiance 在空间上同样存在变化。
+      因此需要在空间中布置三维网格的探针。
+    </p>
+
+    <p>
+      网格的密度与范围由两个参数决定：<code>probeCounts</code>（各轴探针数）与
+      <code>probeSpacing</code>（探针间距，单位米）。这两个参数均由应用指定，SDK 不提供默认值。
+    </p>
+
+    <p>仓库文档给出的建议是典型场景下每 2–3 米一个探针。</p>
+    <p class="src">来源：docs/DDGIVolume.md:799</p>
+
+    <p>Test Harness 中的实际配置可作为参考：</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>场景配置</th><th>probeCounts</th><th>probeSpacing</th><th>探针总数</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">cornell.ini</td><td class="mono">9 9 9</td><td class="mono">0.3 m</td><td class="num">729</td></tr>
+          <tr><td class="mono">multi-cornell.ini</td><td class="mono">9 9 9</td><td class="mono">0.75 m</td><td class="num">729</td></tr>
+          <tr><td class="mono">two-rooms.ini</td><td class="mono">32 6 32</td><td class="mono">11 m</td><td class="num">6144</td></tr>
+        </tbody>
+      </table>
+      <p class="src">来源：samples/test-harness/config/*.ini:95-96 / 71-72 / 85-86</p>
+    </div>
+
+    <h3>查询流程</h3>
+
+    <ol>
+      <li>定位包围着色点的 8 个探针，即 2×2×2 网格单元的各顶点。</li>
+      <li>各探针按表面法线方向，在其八面体图上采样（双线性插值）。</li>
+      <li>按着色点到各探针的距离做三线性插值，加权求和。</li>
+    </ol>
+
+    <p>此处包含两次插值，作用的维度不同：</p>
+
+    <ul>
+      <li>
+        <b>探针内部</b>：沿法线方向在八面体图上插值，用于处理法线的连续变化。
+      </li>
+      <li>
+        <b>探针之间</b>：沿空间位置插值，用于处理位置的连续变化。
+      </li>
+    </ul>
+
+    <p>最终得到的是位置与法线的连续函数。</p>
+
+    <div class="selftest" data-id="st-5">
+      <input type="checkbox" class="cb" id="cb-st-5">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明两次插值各自作用的维度，以及探针密度由哪两个参数决定。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 ================= -->
+  <section class="ch" id="ch-7" data-chapter="07 · 漏光">
+    <div class="ch-head">
+      <span class="ch-num">第 07 章</span>
+      <h2>漏光问题</h2>
+    </div>
+
+    <p>
+      探针网格是规则排列的，场景几何则不是。这个不匹配会导致两类错误。
+    </p>
+
+    <h3>探针落在几何体内部</h3>
+    <p>
+      探针恰好位于墙体内部时，它记录的是墙体内部的光照，结果完全错误。
+      该问题由 <b>relocation</b> 处理，见第 13 章。
+    </p>
+
+    <h3>探针位于遮挡物另一侧</h3>
+    <p>
+      设一条走廊，走廊与相邻房间之间有一堵墙。对走廊表面着色时，
+      三线性插值会把相邻房间一侧的探针也纳入计算。
+    </p>
+
+    <p>
+      但相邻房间的光不应照射到走廊，两者之间隔着墙。
+      问题在于<b>探针只存储了 irradiance，不包含任何关于遮挡物是否存在的问题</b>，
+      插值时无法排除隔着墙的探针。
+    </p>
+
+    <p>
+      结果是墙面对邻近房间的光照呈透明状，即所谓<b>漏光（light leaking）</b>。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">预计算探针的固有限制</span>
+      <p>
+        上述问题在预计算光照探针方案中同样存在，且多一层限制：探针数据在烘焙时确定，
+        运行时无法反映场景变化。
+      </p>
+      <p>
+        门被关上、箱子被移入，探针记录的仍是烘焙时刻的状态。更新需要重新烘焙，
+        耗时在分钟到小时量级。
+      </p>
+    </div>
+
+    <div class="selftest" data-id="st-6">
+      <input type="checkbox" class="cb" id="cb-st-6">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明漏光的成因，以及预计算探针为何无法处理动态场景下的漏光。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 08 ================= -->
+  <section class="ch" id="ch-8" data-chapter="08 · 距离图">
+    <div class="ch-head">
+      <span class="ch-num">第 08 章</span>
+      <h2>距离图与遮挡判断</h2>
+    </div>
+
+    <p>
+      DDGI 的解法是：除 irradiance 之外，为每个探针再存储一张分辨率相同的距离图。
+    </p>
+
+    <p>距离图的每个方向记录两个量：</p>
+
+    <ul>
+      <li>
+        <b>平均命中距离 <span class="fx v">μ</span></b>：探针沿该方向射出的光线，
+        平均在多远处命中物体。
+      </li>
+      <li><b>距离平方的平均</b>：用于计算方差。</li>
+    </ul>
+
+    <div class="note-box">
+      <span class="tag">为何存平方的平均而非直接存方差</span>
+      <p>
+        纹理混合是线性运算。混合相邻探针时，参与混合的量必须可加。
+      </p>
+      <p>
+        平方的平均满足可加性，混合结果仍是正确的平均值；方差<b>不</b>满足可加性。
+        因此存储前者，方差在读取时现算。
+      </p>
+    </div>
+
+    <p>有了距离图，查询时可以执行如下判断：</p>
+
+    <blockquote>
+      <p>
+        设着色点为 <span class="fx v">P</span>，待查询的探针为 <span class="fx v">G</span>，
+        两点相距 3 米。
+      </p>
+      <p>
+        查询 <span class="fx v">G</span> 的距离图，
+        <span class="fx v">G</span> 朝 <span class="fx v">P</span> 方向的平均命中距离为 0.5 米。
+      </p>
+      <p>
+        即 <span class="fx v">G</span> 沿该方向 0.5 米处即被遮挡，而
+        <span class="fx v">P</span> 位于 3 米处，两者之间必然存在遮挡物。
+        该探针的 irradiance 不应计入 <span class="fx v">P</span> 的着色。
+      </p>
+    </blockquote>
+
+    <p>
+      该判断完全基于运行时数据。场景中的遮挡关系发生变化时，光线追踪结果随之更新，
+      距离图同步更新，遮挡判断自动反映新状态，不涉及任何预计算。
+    </p>
+
+    <div class="selftest" data-id="st-7">
+      <input type="checkbox" class="cb" id="cb-st-7">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能复述上述遮挡判断，并说明该方法为何天然适用于动态场景。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 ================= -->
+  <section class="ch" id="ch-9" data-chapter="09 · Chebyshev 权重">
+    <div class="ch-head">
+      <span class="ch-num">第 09 章</span>
+      <h2>遮挡权重：Chebyshev 不等式</h2>
+    </div>
+
+    <p>
+      第 08 章的判断是二值的：距离超出平均命中距离即判定为遮挡。
+      直接采用二值判定会产生两个问题。
+    </p>
+
+    <ol>
+      <li>
+        <b>画面出现硬边。</b>权重从 1 突变为 0，边界处不连续。
+      </li>
+      <li>
+        <b>平均值本身不可靠。</b><span class="fx v">μ</span> 是平均值。
+        几何结构复杂时距离分布分散，平均值可能与实际情况相差较远。
+      </li>
+    </ol>
+
+    <p>
+      因此需要一个平滑的、且能反映不确定性大小的权重。Chebyshev 不等式给出了这样的形式：
+    </p>
+
+    <div class="math">
+      <span class="v">P</span>(真实距离 &gt; <span class="v">d</span>) &nbsp;≤&nbsp;
+      <span class="frac">
+        <span class="n"><span class="v">σ</span>²</span>
+        <span class="d"><span class="v">σ</span>² + (<span class="v">d</span> − <span class="v">μ</span>)²</span>
+      </span>
+    </div>
+
+    <p>
+      其中 <span class="fx v">d</span> 为着色点到探针的距离，
+      <span class="fx v">μ</span> 为该方向的平均命中距离，
+      <span class="fx v">σ</span>² 为该方向距离的方差。
+    </p>
+
+    <p>
+      该式给出真实距离大于 <span class="fx v">d</span> 的概率上界，
+      取值位于 [0, 1]，可直接作为权重使用。它的三个性质恰好满足需求：
+    </p>
+
+    <ul>
+      <li>
+        <span class="fx v">d</span> 略大于 <span class="fx v">μ</span> 时，分母较小，权重接近 1，
+        因此边界处平滑过渡。
+      </li>
+      <li>
+        <span class="fx v">d</span> 远大于 <span class="fx v">μ</span> 时，权重趋近 0。
+      </li>
+      <li>
+        <span class="fx v">σ</span>² 较大时，权重整体偏小，即对平均值不可靠的方向给出更保守的估计。
+      </li>
+    </ul>
+
+    <p>
+      代码位于 <code>Irradiance.hlsl:145-153</code>。方差在
+      <code>:141</code> 由均值与平方均值现算，取绝对值是为避免浮点误差导致负值。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">距离图的分辨率</span>
+      <p>
+        距离图的分辨率通常高于 irradiance 图。Test Harness 的 Cornell 场景使用
+        8×8 的 irradiance 图和 16×16 的距离图。
+      </p>
+      <p>
+        原因是 irradiance 是低频信号，粗糙采样即可；而 Chebyshev 判断依赖距离分布的准确性，
+        需要更高分辨率。该差异也可在内存开销上得到解释：距离图是每个探针占用显存最多的资源。
+      </p>
+      <p class="src">来源：samples/test-harness/config/cornell.ini:98-99；docs/DDGIVolume.md:617-634</p>
+    </div>
+
+    <div class="selftest" data-id="st-8">
+      <input type="checkbox" class="cb" id="cb-st-8">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明二值判定的两个问题，以及 Chebyshev 权重如何同时缓解它们。</p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- ==================== 第二部分 · 工程 ==================== -->
+  <header class="part-head" id="part-2">
+    <span class="part-kicker">第二部分</span>
+    <h2>工程</h2>
+    <p>
+      算法落到 GPU 上的部分：数据在显存中的排布、逐帧累积的策略、
+      以及为控制成本与伪影而加入的三项优化。
+    </p>
+  </header>
+
+  <!-- ================= 10 ================= -->
+  <section class="ch" id="ch-10" data-chapter="10 · 显存组织与 UV">
+    <div class="ch-head">
+      <span class="ch-num">第 10 章</span>
+      <h2>显存组织与 UV 换算</h2>
+    </div>
+    <p>
+      前九章讨论的是算法本身：球面上的辐照度如何求、如何参数化、如何跨探针重建。
+      本章转入实现层面 —— 这些数据在显存中如何排布，以及一次查询如何算出它要读的地址。
+    </p>
+
+    <figure class="fig">
+      <img class="doc-img fit" src="img/textures-atlases.jpg" alt="探针纹理图集：上排为 irradiance 图，下排为 distance 图，每个方格是一个探针的八面体图。">
+      <figcaption>探针数据在显存中的实际组织方式。每个方格是一个探针的八面体图，整张纹理图集包含了网格中所有探针。上排为 irradiance，下排为 distance，黑色区域是位于几何体内部、已被标记为休眠的探针。</figcaption><p class="lightbox-hint">来源：docs/images/ddgivolume-textures-atlases.jpg</p>
+    </figure>
+
+    <p>
+      一个探针在显存中不是单个数值，而是一小块二维图像 —— 即第 05 章的八面体图。
+      因此探针数据有三层嵌套：三维网格、切片内的探针排布、以及单个探针内部的八面体纹素。
+    </p>
+
+    <p>
+      DDGI 使用 <code>Texture2DArray</code> 存储探针数据，即尺寸相同的一组二维纹理叠放。
+      三维探针网格沿竖直轴被切成若干层，每层对应一张切片：
+    </p>
+
+    <ul>
+      <li>层号 <span class="fx">g<sub>y</sub></span> 成为切片索引；</li>
+      <li>层内的两个轴 <span class="fx">g<sub>x</sub></span>、<span class="fx">g<sub>z</sub></span>
+          成为切片内的二维位置。</li>
+    </ul>
+
+    <p>网格坐标到探针索引的换算（Y 轴向上时）：</p>
+
+    <div class="math">
+      probeIndex = <span class="v">g<sub>y</sub></span> × (counts.x × counts.z)
+      + <span class="v">g<sub>z</sub></span> × counts.x
+      + <span class="v">g<sub>x</sub></span>
+    </div>
+
+    <p>
+      每个探针在切片内占据一个
+      <span class="fx">numProbeTexels × numProbeTexels</span> 的方块，其中
+      <span class="fx">numProbeTexels = 内部纹素数 + 2</span>，多出的两圈是 1 纹素边界。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg class="diagram" viewBox="0 0 600 306" role="img"
+             aria-label="探针数据的内存布局。三维探针网格按竖直轴分成若干层，每层是一张切片，多张切片叠放为 Texture2DArray。每张切片内，每个探针占据一个正方形纹素块，块的外圈是 1 纹素边界，内部是八面体图。">
+          <rect class="sheet-dim" x="12" y="46" width="264" height="196" rx="4"/>
+          <rect class="sheet-dim" x="21" y="55" width="264" height="196" rx="4"/>
+          <rect class="sheet"     x="30" y="64" width="264" height="196" rx="4"/>
+
+          <rect class="cell" x="30" y="64" width="60" height="60" rx="3"/>
+          <rect class="cell" x="98" y="64" width="60" height="60" rx="3"/>
+          <rect class="cell" x="166" y="64" width="60" height="60" rx="3"/>
+          <rect class="cell" x="234" y="64" width="60" height="60" rx="3"/>
+          <rect class="cell" x="30" y="132" width="60" height="60" rx="3"/>
+          <rect class="cell" x="98" y="132" width="60" height="60" rx="3"/>
+          <rect class="cell" x="166" y="132" width="60" height="60" rx="3"/>
+          <rect class="cell" x="234" y="132" width="60" height="60" rx="3"/>
+          <rect class="cell" x="30" y="200" width="60" height="60" rx="3"/>
+          <rect class="cell" x="98" y="200" width="60" height="60" rx="3"/>
+          <rect class="cell" x="166" y="200" width="60" height="60" rx="3"/>
+          <rect class="cell" x="234" y="200" width="60" height="60" rx="3"/>
+
+          <rect class="cell-hi" x="98" y="64" width="60" height="60" rx="3"/>
+
+          <path class="lead" d="M158,64 L410,90"/>
+          <path class="lead" d="M158,124 L410,240"/>
+
+          <rect class="zoom-out" x="410" y="90" width="150" height="150" rx="4"/>
+          <rect class="zoom-in"  x="428" y="108" width="114" height="114" rx="3"/>
+          <polygon class="octa" points="485,108 542,165 485,222 428,165"/>
+          <text class="s" x="485" y="169" text-anchor="middle">八面体图</text>
+
+          <text class="band" x="30" y="38">一张切片 = 一个水平面上的全部探针</text>
+          <text class="band" x="12" y="290">沿竖直轴共 counts.y 张，叠放为 Texture2DArray</text>
+          <text class="band" x="410" y="272">单个探针</text>
+          <text class="al"   x="410" y="290">外圈：1 纹素边界</text>
+        </svg>
+      </div>
+      <figcaption>
+        探针数据的三层结构。左：三维网格按竖直轴分层，每层是一张切片。
+        中：切片内每个方格是一个探针。右：放大的单个探针，
+        外圈是用于衔接双线性过滤的 1 纹素边界，内部虚线菱形是八面体图的展开范围。
+      </figcaption>
+    </figure>
+
+    <p>以 Cornell 场景的配置为例（<code>probeCounts = 9 9 9</code>）：</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th></th><th>irradiance 图</th><th>distance 图</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>内部纹素数</td><td class="num">8 × 8</td><td class="num">16 × 16</td></tr>
+          <tr><td>单个探针的方块</td><td class="num">10 × 10</td><td class="num">18 × 18</td></tr>
+          <tr><td>一张切片的尺寸</td><td class="num">90 × 90</td><td class="num">162 × 162</td></tr>
+          <tr><td>切片数</td><td class="num">9</td><td class="num">9</td></tr>
+        </tbody>
+      </table>
+      <p class="src">
+        来源：samples/test-harness/config/cornell.ini:95,98,99；
+        方块尺寸由 numProbeTexels = 内部纹素数 + 2 推算
+      </p>
+    </div>
+
+    <p>一个具体的索引换算，取网格坐标 <span class="fx">(g<sub>x</sub>, g<sub>y</sub>, g<sub>z</sub>) = (2, 4, 6)</span>：</p>
+
+    <pre>probeIndex = 4 × 81 + 6 × 9 + 2 = 380
+
+反解：
+  切片索引 = 380 / 81      = 4        <span class="c">// 即 g_y</span>
+  切片内 x = 380 % 9       = 2        <span class="c">// 即 g_x</span>
+  切片内 y = (380 / 9) % 9 = 6        <span class="c">// 即 g_z</span></pre>
+
+    <p>
+      注意切片内第二个轴的映射关系：网格的 <span class="fx">g<sub>z</sub></span>
+      对应切片内的 y 方向，而非 x 方向。该映射随坐标系约定而变，
+      代码中对 Y 轴向上与 Z 轴向上分别有不同分支（<code>ProbeIndexing.hlsl:112-124</code>）。
+    </p>
+    <h3>方向 → UV 的换算</h3>
+
+    <p>
+      采样的最后一步是把方向变成纹理坐标。第 05 章的正映射只给出探针内部的相对位置，
+      还需要叠加上探针在切片中的位置，才能得到整张纹理上的绝对 UV。
+    </p>
+
+    <p>两个采样使用的方向并不相同：</p>
+
+    <ul>
+      <li>
+        <b>辐照度图</b>：用表面法线。辐照度图记录的是「法线为 <span class="fx v">n</span>
+        时入射光的半球积分」，查询方向就是 <span class="fx v">n</span>。
+      </li>
+      <li>
+        <b>距离图</b>：用探针指向着色点的方向。距离图记录的是各方向上的最近表面距离，
+        查询时问的是「从探针朝着色点看，有多远」，因此传入
+        <code>-biasedPosToAdjProbe</code>（取反是因为该变量存的是着色点指向探针的方向）。
+      </li>
+    </ul>
+
+    <p class="src">
+      来源：rtxgi-sdk/shaders/ddgi/Irradiance.hlsl:132（距离图）、:174（辐照度图）
+    </p>
+
+    <p>
+      两次采样调用同一个换算函数 <code>DDGIGetProbeUV</code>，区别只在传入的纹理分辨率。
+      它把八面体坐标 <span class="fx">[-1, 1]²</span> 依次映射到方块中心、方块内部、整张切片：
+    </p>
+
+    <pre>uint3 coords = DDGIGetProbeTexelCoords(probeIndex, volume);  <span class="c">// 探针在切片内的方块坐标</span>
+
+numProbeTexels = numProbeInteriorTexels + 2;                 <span class="c">// 方块边长 = 内部 + 两侧边界</span>
+
+uv  = float2(coords.x, coords.y) * numProbeTexels            <span class="c">// 方块左上角</span>
+    + numProbeTexels * 0.5f;                                 <span class="c">// 移到方块中心</span>
+uv += octantCoordinates * (numProbeInteriorTexels * 0.5f);   <span class="c">// 按八面体坐标偏移</span>
+
+uv /= float2(textureWidth, textureHeight);                   <span class="c">// 归一化为 [0, 1]</span>
+return float3(uv, coords.z);                                 <span class="c">// z 分量即切片索引</span></pre>
+
+    <p class="src">
+      来源：rtxgi-sdk/shaders/ddgi/include/ProbeIndexing.hlsl:212-236；
+      切片尺寸 textureWidth / textureHeight 在 :220-229 按坐标系分支给出
+    </p>
+
+    <p>
+      关键在第三步的缩放系数：八面体坐标的范围是 <span class="fx">[-1, 1]</span>，
+      乘以 <span class="fx">interiorTexels / 2</span> 之后恰好铺满内部区域。
+      方块中心位于距左上角 <span class="fx">numProbeTexels / 2</span> 个纹素处，
+      两个量相差一个纹素，正是外圈边界所占的宽度。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg class="diagram narrow" viewBox="0 0 336 200" role="img"
+             aria-label="单个探针的纹素方块。10 乘 10 的方块外圈是 1 纹素边界，内部 8 乘 8 是八面体图。方块中心对应八面体坐标 (0,0)，中心到内部边缘的距离是 interiorTexels 除以 2，即 4 个纹素。">
+          <text class="band" x="24" y="22">单个探针方块：10 × 10 纹素</text>
+
+          <rect class="zoom-out" x="24" y="34" width="150" height="150" rx="4"/>
+          <rect class="zoom-in"  x="39" y="49" width="120" height="120" rx="3"/>
+
+          <path class="lead" d="M99,103 V115"/>
+          <path class="lead" d="M99,109 H159"/>
+          <path class="lead" d="M159,104 V114"/>
+
+          <text class="s" x="94" y="129" text-anchor="end">(0, 0)</text>
+          <text class="s" x="132" y="103" text-anchor="middle">4 纹素</text>
+
+          <path class="lead" d="M159,57 L192,50"/>
+          <text class="s" x="196" y="54">内部 8 × 8：八面体图</text>
+
+          <path class="lead" d="M174,116 L192,130"/>
+          <text class="s" x="196" y="134">外圈：1 纹素边界</text>
+        </svg>
+      </div>
+      <figcaption>
+        单个探针的方块。中心对应八面体坐标的原点 <span class="fx">(0, 0)</span>，
+        沿任一轴到内部边缘的距离是 <span class="fx">interiorTexels / 2</span> 个纹素。
+        外圈一个纹素的边界在查询时不被直接命中，只在双线性过滤跨越接缝时被读到。
+      </figcaption>
+    </figure>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>八面体坐标</th><th>落在方块内的位置</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">(0, 0)</td><td>方块中心，距左上角 numProbeTexels / 2 个纹素</td></tr>
+          <tr><td class="mono">[-1, 1]</td><td>中心 ± interiorTexels / 2 个纹素，恰好铺满内部区域</td></tr>
+          <tr><td class="mono">范围之外</td><td>1 纹素边界，仅被双线性过滤的取样核触及</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      一个具体的算例。取表面法线 <span class="fx v">n</span> = normalize(1, 1, 0)，
+      探针网格坐标 <span class="fx">(g<sub>x</sub>, g<sub>y</sub>, g<sub>z</sub>) = (2, 4, 6)</span>，
+      Cornell 配置（<span class="fx">probeNumIrradianceInteriorTexels = 8</span>）：
+    </p>
+
+    <pre><span class="c">第一步：正映射，方向 → 八面体坐标</span>
+  l1norm = 0.7071 + 0.7071 + 0 = 1.4142
+  uv     = (0.7071, 0.7071) / 1.4142 = (0.5, 0.5)
+  z = 0，不小于 0，不需要折叠
+  → (0.5, 0.5)
+
+<span class="c">第二步：探针索引 → 方块坐标</span>
+  probeIndex = 380，反解得方块坐标 (x, y, 切片) = (2, 6, 4)
+
+<span class="c">第三步：方块坐标 + 八面体坐标 → UV</span>
+  numProbeTexels = 8 + 2 = 10
+  切片尺寸 = 10 × 9 = 90
+
+  方块左上角    (2 × 10, 6 × 10)          = (20, 60)
+  移到方块中心  + (5, 5)                  = (25, 65)
+  八面体偏移    + (0.5, 0.5) × 4          = (27, 67)
+  归一化        / (90, 90)                = (0.300, 0.744)
+
+  采样坐标 = (0.300, 0.744, 4)</pre>
+
+    <p>
+      距离图的换算完全相同，只是传入 <code>probeNumDistanceInteriorTexels</code>：
+      内部 16 × 16、方块 18 × 18、切片 162 × 162，偏移量为
+      <span class="fx">(0.5, 0.5) × 8</span>。两张纹理共用同一个双线性采样器。
+    </p>
+
+    <p>
+      传入的方向不需要预先归一化：正映射除以 L1 范数，对正数缩放不变
+      （<code>ProbeOctahedral.hlsl:64-73</code>）。代码中传入的向量已是单位向量。
+    </p>
+  </section>
+
+  <!-- ================= 11 ================= -->
+  <section class="ch" id="ch-11" data-chapter="11 · 时间累积">
+    <div class="ch-head">
+      <span class="ch-num">第 11 章</span>
+      <h2>时间累积</h2>
+    </div>
+
+    <p>
+      单帧投射的光线数量远不足以得到收敛的 irradiance。因此 DDGI 跨帧累积：
+    </p>
+
+    <div class="math">
+      新值 = 旧值 × <span class="v">h</span> &nbsp;+&nbsp; 本帧结果 × (1 − <span class="v">h</span>)
+    </div>
+
+    <p>
+      其中 <span class="fx v">h</span> 即 <code>probeHysteresis</code> 参数，
+      是<b>旧值的权重</b>。Test Harness 的场景配置使用 0.97。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeBlendingCS.hlsl:534；samples/test-harness/config/cornell.ini:100</p>
+
+    <p>
+      <span class="fx v">h</span> 越大，画面越稳定，但对光照变化的响应越慢；
+      <span class="fx v">h</span> 越小则相反。
+    </p>
+
+    <h3>两项自适应调整</h3>
+
+    <p>实现中并非始终使用固定的 <span class="fx v">h</span>，有两处例外：</p>
+
+    <ul>
+      <li>
+        <b>检测到剧烈光照变化时</b>，<span class="fx v">h</span> 减去 0.75（下限为 0），
+        以加快收敛。
+      </li>
+      <li>
+        <b>亮度变化超过阈值时</b>，单帧变化量乘以 0.25 加以限制，避免画面闪烁。
+      </li>
+    </ul>
+
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeBlendingCS.hlsl:520-530</p>
+
+    <p>
+      此外，低精度纹理格式下相邻两次混合的差值可能小于格式可表示的最小值，
+      导致收敛停滞。代码对此设置了最小步长（10 位格式的阈值为 1/1024）以保证收敛。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeBlendingCS.hlsl:535-543</p>
+
+    <p>
+      时间累积带来的固有代价是延迟：光照或物体变化后需要若干帧才能反映到最终画面。
+      这是该方法的固有限制，仓库文档将其列为 DDGI 的局限之一。
+    </p>
+    <p class="src">来源：docs/Algorithms.md</p>
+
+    <div class="selftest" data-id="st-11">
+      <input type="checkbox" class="cb" id="cb-st-11">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明时间累积的公式、probeHysteresis 的语义，以及它换取的代价。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 12 ================= -->
+  <section class="ch" id="ch-12" data-chapter="12 · 完整流程">
+    <div class="ch-head">
+      <span class="ch-num">第 12 章</span>
+      <h2>完整流程</h2>
+    </div>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+        <svg class="diagram" viewBox="0 0 680 272" role="img"
+             aria-label="DDGI 数据流。更新侧每帧从探针网格投射光线，经硬件光追得到光线结果，由 ProbeBlendingCS 写入共享的探针 irradiance 与 distance 纹理。查询侧每个像素从同一组纹理读取最近 8 个探针，经三线性插值与 Chebyshev 遮挡测试，最终乘 2π 得到 irradiance。">
+          <defs>
+            <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5"
+                    markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+            </marker>
+          </defs>
+          <text class="band" x="16" y="14">更新侧 · 每帧</text>
+          <rect class="box" x="16"  y="24" width="160" height="48" rx="6"/>
+          <text class="t" x="96" y="46" text-anchor="middle">探针网格</text>
+          <text class="s" x="96" y="62" text-anchor="middle">probe grid</text>
+          <rect class="box" x="260" y="24" width="160" height="48" rx="6"/>
+          <text class="t" x="340" y="46" text-anchor="middle">硬件光追</text>
+          <text class="s" x="340" y="62" text-anchor="middle">RGS · CHS · Miss</text>
+          <rect class="box" x="504" y="24" width="160" height="48" rx="6"/>
+          <text class="t" x="584" y="46" text-anchor="middle">ProbeBlendingCS</text>
+          <text class="s" x="584" y="62" text-anchor="middle">除以 2Σw · 混入历史</text>
+          <line class="flow" x1="180" y1="48" x2="253" y2="48" marker-end="url(#arw)"/>
+          <text class="al" x="218" y="39" text-anchor="middle">投射光线</text>
+          <line class="flow" x1="424" y1="48" x2="497" y2="48" marker-end="url(#arw)"/>
+          <text class="al" x="462" y="39" text-anchor="middle">光线结果</text>
+          <line class="flow" x1="340" y1="72" x2="340" y2="96" marker-end="url(#arw)"/>
+          <text class="al" x="350" y="90">写入</text>
+          <rect class="store" x="16" y="100" width="648" height="56" rx="8"/>
+          <text class="t" x="340" y="126" text-anchor="middle">探针 irradiance 图 ＋ distance 图</text>
+          <text class="s" x="340" y="144" text-anchor="middle">八面体映射 · 每探针一张图集</text>
+          <line class="flow" x1="96" y1="156" x2="96" y2="180" marker-end="url(#arw)"/>
+          <text class="al" x="104" y="176">读取</text>
+          <text class="band" x="16" y="198">查询侧 · 每个像素</text>
+          <rect class="box" x="16"  y="208" width="160" height="48" rx="6"/>
+          <text class="t" x="96" y="230" text-anchor="middle">读取探针</text>
+          <text class="s" x="96" y="246" text-anchor="middle">最近的 8 个</text>
+          <rect class="box" x="260" y="208" width="160" height="48" rx="6"/>
+          <text class="t" x="340" y="230" text-anchor="middle">三线性插值</text>
+          <text class="s" x="340" y="246" text-anchor="middle">＋ wrap shading</text>
+          <rect class="box" x="504" y="208" width="160" height="48" rx="6"/>
+          <text class="t" x="584" y="230" text-anchor="middle">Chebyshev 遮挡</text>
+          <text class="s" x="584" y="246" text-anchor="middle">× 2π → irradiance</text>
+          <line class="flow" x1="180" y1="232" x2="253" y2="232" marker-end="url(#arw)"/>
+          <text class="al" x="218" y="223" text-anchor="middle">按权重累加</text>
+          <line class="flow" x1="424" y1="232" x2="497" y2="232" marker-end="url(#arw)"/>
+          <text class="al" x="462" y="223" text-anchor="middle">可见性加权</text>
+        </svg>
+      </div>
+      <figcaption>
+        两侧之间没有直接调用关系，只通过中间的探针纹理耦合：
+        更新侧写入，查询侧读取。
+      </figcaption>
+    </figure>
+
+    
+    <figure class="fig">
+      <div class="fig-scroll"><img class="doc-img" src="img/ddgi-algorithm.jpg" alt="NVIDIA 幻灯片：场景中布置探针、光线追踪与着色、更新探针、渲染间接光四个阶段。"></div>
+      <figcaption>NVIDIA 官方幻灯片给出的同一流程。最左为探针在场景中的布置；中间两栏为本节描述的更新侧，并展示了 irradiance 与 distance 两张纹理的实际内容；最右为使用探针数据渲染出的间接光照结果。</figcaption><p class="lightbox-hint">来源：docs/images/rtxgi-ddgi-algorithm.jpg（NVIDIA GDC 演示材料）</p>
+    </figure>
+
+    <h3>更新侧（每帧）</h3>
+    <ol>
+      <li>每个探针沿固定方向投射光线（数量由编译期宏指定，见第 04 章）。</li>
+      <li>光线追踪返回 radiance 与命中距离。</li>
+      <li>
+        按 <span class="fx v">w</span> = max(0,
+        <span class="fx v">ω<sub>i</sub></span>·<span class="fx v">ω<sub>t</sub></span>)
+        累积进八面体图。
+      </li>
+      <li>
+        累加值除以 2Σ<span class="fx v">w</span>，再按 <span class="fx v">h</span>
+        与上一帧结果混合。
+      </li>
+    </ol>
+
+    <h3>写入的两张纹理</h3>
+    <ul>
+      <li><b>irradiance 图</b>：各方向接收的光量。</li>
+      <li><b>distance 图</b>：各方向命中物体的距离统计量。</li>
+    </ul>
+
+    <h3>查询侧（每个像素）</h3>
+    <ol>
+      <li>定位包围着色点的 8 个探针。</li>
+      <li>按法线方向在各自八面体图上双线性采样。</li>
+      <li>由 distance 图计算 Chebyshev 遮挡权重。</li>
+      <li>对 8 个结果做三线性插值。</li>
+      <li>乘 2π 得到 irradiance。</li>
+    </ol>
+
+    <div class="selftest" data-id="st-12">
+      <input type="checkbox" class="cb" id="cb-st-12">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能不参照上图，分别复述更新侧与查询侧的完整流程。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 13 ================= -->
+  <section class="ch" id="ch-13" data-chapter="13 · 工程优化">
+    <div class="ch-head">
+      <span class="ch-num">第 13 章</span>
+      <h2>工程优化</h2>
+    </div>
+
+    <p>
+      以下各项属于实现层面的优化，不涉及新的物理或数学内容。
+    </p>
+
+    <h3>Relocation（探针重定位）</h3>
+    <p>处理第 07 章的第一类错误。</p>
+    <p class="src">来源：docs/DDGIVolume.md:718-734</p>
+
+    <div class="pair">
+    <figure class="fig">
+      <img class="doc-img" src="img/relocation-off.jpg" alt="未启用重定位：部分探针嵌在右侧墙体内部。">
+      <figcaption>未启用重定位。注意右侧墙面上那一排贴附在墙体的深色圆点 —— 它们是嵌在墙内的探针。</figcaption>
+    </figure>
+    <figure class="fig">
+      <img class="doc-img" src="img/relocation-on.jpg" alt="启用重定位：嵌在墙内的探针已被推到墙体之外。">
+      <figcaption>启用重定位。同样的探针已被推出墙面，成为漂浮在房间内的白色球体。</figcaption>
+    </figure></div>
+
+    <h4>移动方向从哪里来</h4>
+
+    <p>
+      重定位并不计算"移到哪里最好"，而是从一个离散的候选集合里挑方向：
+      探针自己的固定光线命中结果。
+      <code>DDGIProbeRelocationCS</code> 遍历该探针的前 32 条光线
+      （<code>numRays = min(probeNumRays, RTXGI_DDGI_NUM_FIXED_RAYS)</code>），
+      统计背面命中数，并记录最近的背面命中、最近的正面命中、最远的正面命中，
+      各自的方向与距离。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeRelocationCS.hlsl:140-191</p>
+
+    <p>
+      这也解释了固定光线为何必须存在：方向和距离都取自这 32 条光线的命中结果，
+      如果它们每次更新都换朝向，选出来的方向就会不停跳动。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 588 208" role="img" aria-label="探针重定位的三种情形。一：探针埋在墙体内部，射线从内部穿出墙面时命中背面，探针沿最近的背面命中方向移出。二：探针贴着一面墙，若最远的正面命中方向与最近的正面命中方向大致相反，则沿最远方向移动。三：探针附近没有几何体，沿当前偏移的反方向退回网格原位。">
+<defs><marker id="ahReloc" viewBox="0 0 8 8" refX="6.6" refY="4" markerWidth="5.2" markerHeight="5.2" orient="auto"><path class="ah" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<text class="band" x="16" y="16">三种情形与各自的移动方向</text>
+<text class="t" x="18" y="36">① 埋在几何体内部</text>
+<rect class="wall" x="62" y="48" width="40" height="96"/>
+<line class="ray" x1="92" y1="96" x2="144" y2="96"/>
+<line class="ray" x1="92" y1="96" x2="131.8" y2="62.6"/>
+<line class="ray" x1="92" y1="96" x2="131.8" y2="129.4"/>
+<line class="ray" x1="92" y1="96" x2="101" y2="44.8"/>
+<line class="ray" x1="92" y1="96" x2="101" y2="147.2"/>
+<line class="ray" x1="92" y1="96" x2="47" y2="70"/>
+<line class="ray" x1="92" y1="96" x2="47" y2="122"/>
+<line class="lead" x1="102" y1="91" x2="102" y2="101"/>
+<line class="move" x1="92" y1="96" x2="140" y2="96" marker-end="url(#ahReloc)"/>
+<circle class="probe" cx="92" cy="96" r="4.5"/>
+<text class="al" x="106" y="88">最近的出射面</text>
+<text class="al" x="18" y="168">沿最近的背面命中方向</text>
+<text class="al" x="18" y="184">→ 移出几何体</text>
+<text class="t" x="202" y="36">② 贴着表面</text>
+<rect class="wall" x="230" y="48" width="34" height="96"/>
+<rect class="wall" x="346" y="48" width="30" height="96"/>
+<line class="ray" x1="278" y1="96" x2="264" y2="96"/>
+<line class="move" x1="278" y1="96" x2="340" y2="96" marker-end="url(#ahReloc)"/>
+<circle class="probe" cx="278" cy="96" r="4.5"/>
+<text class="al" x="244" y="88">最近</text>
+<text class="al" x="304" y="88">最远</text>
+<text class="al" x="202" y="168">两者方向大致相反时，</text>
+<text class="al" x="202" y="184">沿最远的正面命中方向移动</text>
+<text class="t" x="386" y="36">③ 附近空旷</text>
+<rect class="wall" x="540" y="48" width="22" height="96"/>
+<circle class="ghost" cx="440" cy="96" r="4.5"/>
+<line class="move" x1="480" y1="96" x2="449" y2="96" marker-end="url(#ahReloc)"/>
+<circle class="probe" cx="480" cy="96" r="4.5"/>
+<text class="al" x="466" y="120">当前偏移</text>
+<text class="al" x="422" y="82">网格原位</text>
+<text class="al" x="386" y="168">沿当前偏移的反方向</text>
+<text class="al" x="386" y="184">→ 逐步退回原位</text>
+</svg>
+      </div>
+      <figcaption>
+        三种情形。① 探针埋在墙内，光线从内部打到墙面即为背面命中，沿最近的那次背面命中方向移出。
+        ② 探针贴着墙，最近的正面命中很近；若最远的正面命中方向与之大致反向，就沿最远方向移动。
+        ③ 探针附近没有几何体，沿当前偏移的反方向退回网格原位。
+      </figcaption>
+    </figure>
+
+    <h4>三种情形</h4>
+
+    <ol>
+      <li>
+        <b>埋在几何体内部</b>。背面命中数占固定光线的比例超过
+        <code>probeFixedRayBackfaceThreshold</code> 时成立
+        （文档中写的 <code>probeBackfaceThreshold</code> 是旧名称）。
+        沿<b>最近的背面命中方向</b>移动，距离为该次命中距离加上
+        <code>probeMinFrontfaceDistance</code> 的一半。
+        背面命中意味着光线是从物体内部打到这个面上的，所以朝该方向走就是往外走。
+      </li>
+      <li>
+        <b>贴着表面</b>。最近的正面命中距离小于
+        <code>probeMinFrontfaceDistance</code> 时成立。沿<b>最远的正面命中方向</b>移动，
+        但需满足 <code>dot(最近方向, 最远方向) ≤ 0</code> ——
+        两者大致反向，朝最远方向走才不会反而更贴近最近的那个面。
+        移动距离取 <code>min(最远命中距离, 1.0)</code>，既不穿过最远的面，
+        也不超过 1 个世界单位。
+      </li>
+      <li>
+        <b>附近空旷</b>。最近的正面命中距离大于
+        <code>probeMinFrontfaceDistance</code> 时成立。沿当前偏移的反方向退回，
+        距离取 <code>min(最近距离 − 阈值, 当前偏移长度)</code>，即最多退回网格原位。
+      </li>
+    </ol>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeRelocationCS.hlsl:193-221</p>
+
+    <p>
+      后两种情形互补，覆盖了所有"不在几何体内部"的探针：离表面太近就离开，
+      否则就回收。因此一个被重定位过的探针，在周围变空旷之后会自己走回网格原位。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">背面距离为何要乘 −5</span>
+      <p>
+        背面命中在写入光线数据时被存成 <code>−hitT × 0.2</code>：
+        取负是为了与正面命中区分，乘 0.2 是为了削弱这类探针在辐照度采样中的影响。
+        重定位读取时再乘回 <code>−5</code>，还原成真实距离。
+      </p>
+      <p class="src">来源：rtxgi-sdk/shaders/ddgi/include/ProbeRayCommon.hlsl:61-73；ProbeRelocationCS.hlsl:167</p>
+    </div>
+
+    <h4>45% 是门槛，不是截断</h4>
+
+    <p>
+      候选偏移写入前会做一次判断：按 <code>probeSpacing</code> 归一化后，
+      若长度平方小于 0.2025（即 0.45²）才接受，否则<b>整次移动被丢弃</b>，
+      探针保持原有偏移不变。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeRelocationCS.hlsl:223-230</p>
+
+    <p>
+      这一点与情形二的 1 个世界单位上限叠加时会产生一个后果：若
+      <code>probeSpacing</code> 本身较小，一次 1 单位的移动归一化后就会超出 0.45，
+      整次移动随即被丢弃。例如 Cornell 配置的间距是 0.3 米，该场景中情形二基本不会生效；
+      文档建议的 2 至 3 米间距才是这条路径的正常工作区间。
+    </p>
+
+    <h3>Classification（探针分类）</h3>
+    <p>用于减少无效计算。</p>
+    <p>
+      部分探针不产生有效贡献：位于几何体内部的、周围没有几何体的、以及位于场景之外的。
+      这些探针被标记为休眠，跳过光线投射与纹理更新。
+    </p>
+    <p>分类分两个阶段执行：</p>
+    <ol>
+      <li>
+        检查探针是否位于几何体内部：统计固定光线中背面命中的比例，超过阈值则标记为休眠。
+      </li>
+      <li>
+        检查探针周围是否存在正面几何体：比较各固定光线的命中距离与其所属体素平面的交点距离。
+        若所有光线都不满足条件，则标记为休眠。
+      </li>
+    </ol>
+    <p class="src">来源：docs/DDGIVolume.md:736-751</p>
+    <figure class="fig">
+      <div class="fig-scroll"><img class="doc-img" src="img/classification-01.jpg" alt="Sponza 场景中的探针可视化：红色轮廓为被判定休眠的探针，绿色轮廓为活跃探针。"></div>
+      <figcaption>Sponza 场景中的分类结果。红色轮廓的探针已被判定为休眠，它们位于几何体内部或周围没有几何体；绿色轮廓的探针仍在参与光线投射与纹理更新。</figcaption><p class="lightbox-hint">来源：docs/images/ddgivolume-classification-01.jpg</p>
+    </figure>
+
+    <h3>Variability（变异性）</h3>
+
+    <p>
+      Relocation 与 classification 处理的是"探针位置不对"，variability 处理的是另一件事：
+      <b>什么时候可以停下来</b>。
+    </p>
+
+    <h4>为什么需要它</h4>
+
+    <p>
+      探针的辐照度是逐次更新累积出来的估计值。即使已经累积了大量样本，
+      每个八面体纹素上仍然残留非零的方差 —— 某些纹素甚至可能永远无法完全收敛。
+      单帧看上去问题不大（估计值本身是合理的），但这些残差<b>每次更新都在变</b>，
+      表现为间接光里持续的低频噪声，在时间上就是可见的抖动。
+    </p>
+
+    <p>
+      如果能定量判断"这个 volume 的估计已经稳定了"，就可以暂停它的光线投射与混合更新，
+      把开销省下来。variability 就是这个量。
+    </p>
+    <p class="src">来源：docs/DDGIVolume.md:774-782</p>
+
+    <h4>测的是什么量</h4>
+
+    <p>
+      在 <code>ProbeBlendingCS.hlsl</code> 里，混合一个纹素时会用到三个值：
+    </p>
+
+    <ul>
+      <li>
+        <span class="fx v">probeIrradianceMean</span>：探针中已累积的历史值，即本次更新之前的值；
+      </li>
+      <li>
+        <span class="fx v">irradianceSample</span>：本次更新由当前这批光线新算出的值，尚未与历史混合；
+      </li>
+      <li>
+        <span class="fx v">result</span>：混合后的新值，等于
+        <span class="fx v">probeIrradianceMean</span> +
+        (1 − <span class="fx v">h</span>)(<span class="fx v">irradianceSample</span> −
+        <span class="fx v">probeIrradianceMean</span>)，其中 <span class="fx v">h</span>
+        是 hysteresis。
+      </li>
+    </ul>
+
+    <p>变异系数由后两者的<b>逐通道乘积</b>算出：</p>
+
+    <div class="math">
+      σ<sup>2</sup> = (<span class="v">sample</span> − <span class="v">old</span>)
+      × (<span class="v">sample</span> − <span class="v">new</span>)
+    </div>
+
+    <p>
+      这个形式看不出含义，但代入混合公式就化简了。由于
+      <span class="fx v">sample</span> − <span class="fx v">new</span> =
+      <span class="fx v">h</span>&thinsp;(<span class="fx v">sample</span> −
+      <span class="fx v">old</span>)，乘积等于
+      <span class="fx v">h</span>&thinsp;(<span class="fx v">sample</span> −
+      <span class="fx v">old</span>)<sup>2</sup>。再取亮度、开方、除以新值的亮度：
+    </p>
+
+    <div class="math">
+      CoV =
+      <span class="frac">
+        <span class="n">√<span class="v">Y</span>(σ<sup>2</sup>)</span>
+        <span class="d"><span class="v">Y</span>(<span class="v">new</span>)</span>
+      </span>
+      &nbsp;≈&nbsp; √<span class="v">h</span> ·
+      <span class="frac">
+        <span class="n">|<span class="v">sample</span> − <span class="v">old</span>|</span>
+        <span class="d"><span class="v">Y</span>(<span class="v">new</span>)</span>
+      </span>
+    </div>
+
+    <p>
+      所以它度量的是：<b>本次新样本与历史累积值之间的差距，相对于当前亮度的比例</b>。
+      累积越充分，新样本越接近历史值，这个比值越小；光照发生变化时它会立刻抬升。
+      <span class="fx v">h</span> = 0.97 时 √<span class="fx v">h</span> ≈ 0.985，
+      基本就是"本次样本与历史值的相对偏差"。
+    </p>
+    <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeBlendingCS.hlsl:513-561</p>
+
+    <p>两个细节：</p>
+    <ul>
+      <li>
+        亮度低于 <code>1/1024</code> 的纹素直接记 0，避免 0 除以 0。
+      </li>
+      <li>
+        上面的化简在常规路径下成立。若触发了亮度突变钳制
+        （<code>probeBrightnessThreshold</code>）或变暗时的最小步进，
+        <code>lerpDelta</code> 会被改写，等式不再严格成立。
+        不过这两个分支只在光照剧烈变化时才进入，那时 variability 本来就该升高。
+      </li>
+    </ul>
+
+    <h4>从每个纹素归约成一个数</h4>
+
+    <p>
+      变异系数是逐纹素算出来的，纹理布局与 irradiance 图相同。应用需要的是整个 volume
+      的一个标量，因此要经过多趟归约：
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 680 216" role="img" aria-label="变异性从逐纹素计算归约成单个数值，再到应用侧做出暂停决定的流程。GPU 侧：ProbeVariability 纹理每个纹素存一个变异系数；第一趟归约按线程组求均值并同时输出权重，写入 ProbeVariabilityAverage；额外归约反复做加权平均，直到 1 乘 1 乘 1。CPU 侧读回该值，与阈值比较并结合已更新次数，决定是否暂停该 volume 的更新。">
+  <defs><marker id="ahVar" viewBox="0 0 8 8" refX="6.6" refY="4" markerWidth="5" markerHeight="5" orient="auto">
+    <path class="ahf" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+  <text class="band" x="12" y="16">从一个纹素到一个数，再到一个决定</text>
+
+  <text class="al" x="12" y="40">GPU</text>
+  <rect class="box" x="30" y="46" width="138" height="60" rx="4"/>
+  <text class="t" x="99" y="70" text-anchor="middle">ProbeVariability</text>
+  <text class="s" x="99" y="88" text-anchor="middle">每纹素一个变异系数</text>
+
+  <rect class="box" x="190" y="46" width="138" height="60" rx="4"/>
+  <text class="t" x="259" y="70" text-anchor="middle">第 1 趟归约</text>
+  <text class="s" x="259" y="88" text-anchor="middle">线程组内求均值</text>
+
+  <rect class="box" x="350" y="46" width="138" height="60" rx="4"/>
+  <text class="t" x="419" y="70" text-anchor="middle">VariabilityAverage</text>
+  <text class="s" x="419" y="88" text-anchor="middle">（均值, 权重）</text>
+
+  <rect class="box" x="510" y="46" width="138" height="60" rx="4"/>
+  <text class="t" x="579" y="70" text-anchor="middle">额外归约</text>
+  <text class="s" x="579" y="88" text-anchor="middle">加权平均，反复执行</text>
+
+  <path class="flow" d="M168,76 H186" marker-end="url(#ahVar)"/>
+  <path class="flow" d="M328,76 H346" marker-end="url(#ahVar)"/>
+  <path class="flow" d="M488,76 H506" marker-end="url(#ahVar)"/>
+  <path class="flow" d="M579,106 V130 H175 V142" marker-end="url(#ahVar)"/>
+
+  <path class="ghost" d="M12,120 H668"/>
+  <text class="al" x="12" y="140">CPU</text>
+  <rect class="box" x="30" y="146" width="290" height="54" rx="4"/>
+  <text class="t" x="175" y="168" text-anchor="middle">读回 1×1×1</text>
+  <text class="s" x="175" y="186" text-anchor="middle">GetVolumeAverageVariability()</text>
+
+  <rect class="box" x="352" y="146" width="290" height="54" rx="4"/>
+  <text class="t" x="497" y="168" text-anchor="middle">应用侧判断</text>
+  <text class="s" x="497" y="186" text-anchor="middle">低于阈值 且 已更新 &gt; 16 次 → 暂停更新</text>
+
+  <path class="flow" d="M320,173 H348" marker-end="url(#ahVar)"/>
+</svg>
+      </div>
+      <figcaption>
+        变异性从逐纹素计算到应用侧决定的完整路径。GPU 侧两趟归约把纹理降到 1×1×1，
+        CPU 侧读回该值，再结合已更新次数决定是否暂停这个 volume 的更新。
+      </figcaption>
+    </figure>
+
+    <ul>
+      <li>
+        <b>第 1 趟</b> <code>DDGIReductionCS</code>：线程组为 4×8×4，每线程采样 4×2 个纹素。
+        组内求和后写入 <code>ProbeVariabilityAverage</code> 的一个纹素：
+        <code>.r</code> 是所覆盖纹素的均值，<code>.g</code> 是"实际计入的样本数 ÷ 可能的样本数"这一权重。
+      </li>
+      <li>
+        <b>后续趟</b> <code>DDGIExtraReductionCS</code>：把上一级的 (值, 权重) 对做加权平均，
+        输出尺寸逐级缩小，反复执行直到 1×1×1。循环由 CPU 侧的
+        <code>CalculateDDGIVolumeVariability</code> 驱动。
+      </li>
+    </ul>
+    <p class="src">
+      来源：rtxgi-sdk/shaders/ddgi/ReductionCS.hlsl:205-263、355-410；
+      rtxgi-sdk/src/ddgi/gfx/DDGIVolume_D3D12.cpp:772-800
+    </p>
+
+    <p>
+      权重 <code>.g</code> 是必需的，不是可选的优化。纹理边缘的线程组覆盖不满，
+      而被 classification 判为休眠的探针还会被整块跳过。
+    </p>
+
+    <p>
+      跳过就发生在第 1 趟里：遇到休眠探针时把该样本记为 0 并 <code>continue</code>，
+      <b>不计入分母</b>。这正是权重存在的原因 —— 若按满额分母平均，
+      休眠探针越多，算出的变异系数就越偏低，收敛判断会提前触发。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">曾经的一次除零</span>
+      <p>
+        当 volume 中所有探针都被禁用时，某个归约线程可能一个有效样本都没有。
+        早期版本在这种情况下会做一次 0/0 的除法。现在的代码要求
+        <code>threadFootprintWeightSum &gt; 0</code> 才参与计算。
+      </p>
+      <p class="src">来源：ChangeLog.md:6；ReductionCS.hlsl:387</p>
+    </div>
+
+    <h4>应用侧如何使用</h4>
+
+    <p>
+      归约结果读回后由 <code>GetVolumeAverageVariability()</code> 暴露给应用。
+      Test Harness 的判断是：
+    </p>
+
+    <pre>const uint32_t MinimumVariabilitySamples = 16;
+bool isConverged = volume-&gt;GetProbeVariabilityEnabled()
+                &amp;&amp; (numVolumeVariabilitySamples++ &gt; MinimumVariabilitySamples)
+                &amp;&amp; (volumeAverageVariability &lt; probeVariabilityThreshold);
+if (!isConverged) selectedVolumes.push_back(volume);</pre>
+    <p class="src">来源：samples/test-harness/src/graphics/DDGI_D3D12.cpp:1240-1248</p>
+
+    <p>三个条件缺一不可：</p>
+
+    <ol>
+      <li>该 volume 启用了 variability；</li>
+      <li>已更新超过 16 次 —— 这是预热，用来滤掉早期的偶然低值；</li>
+      <li>体积平均变异系数低于阈值。</li>
+    </ol>
+
+    <p>
+      被判为收敛的 volume 不会进入 <code>selectedVolumes</code>，
+      因此<b>连 <code>Update()</code> 都不会被调用</b>。而 <code>Update()</code>
+      正是重算光线随机旋转的地方 —— 暂停更新同时也冻结了旋转。
+      这是合理的：既然不再累积新样本，换朝向也没有意义。
+    </p>
+
+    <p>
+      Cornell 配置中该功能默认关闭（<code>probeVariability.enabled=0</code>），
+      阈值为 0.03，即平均每次更新的相对变化低于 3% 就判定为收敛。
+    </p>
+    <p class="src">来源：samples/test-harness/config/cornell.ini:86-87</p>
+
+    <h4>为什么阈值不能取 0</h4>
+
+    <p>
+      这是最容易误解的一点。变异系数<b>不会降到 0</b>，而是稳定在某个区间内：
+      探针的估计本身始终带有一定方差，部分纹素可能永远无法完全收敛。
+      这个区间取决于 volume 的范围、探针分布、每探针光线数，以及场景本身的光传输特性。
+    </p>
+
+    <p>
+      正因为如此，SDK 只负责测量并暴露这个值，阈值交由应用按场景设定，
+      文档中没有给出通用阈值。
+    </p>
+    <p class="src">来源：docs/DDGIVolume.md:776-782</p>
+
+    <h3>Infinite Scrolling Volume（无限滚动）</h3>
+    <p>
+      Relocation 与 classification 处理的是单个 volume 内部的问题。开放世界或大尺度场景
+      还面临另一个限制：
+      单个 volume 无法覆盖整个空间，而探针数量与显存占用随覆盖范围线性增长。
+    </p>
+    <p>
+      无限滚动 volume 用固定的显存与计算开销覆盖任意大的空间。做法是只为一个子区域
+      计算探针数据（称为 active space），并让该子区域随相机或角色移动。
+    </p>
+    <p>
+      滚动时的处理方式值得注意：并不整体平移所有探针，而是只让运动轴一端的<b>一层</b>探针
+      失效并重新收敛，<b>内部探针保持原位</b>，其 irradiance 与 distance 数据继续有效。
+      文档用坦克履带作类比 —— 履带整体向前滚动，但与地面接触的各节始终停留在固定位置。
+    </p>
+    <figure class="fig">
+      <img class="doc-img fit" src="img/movement-isv.gif" alt="无限滚动 volume 的探针移动示意动画。">
+      <figcaption>
+        无限滚动 volume 的移动方式。每一步只有运动轴上的一层探针失效并重新收敛，
+        内部探针的位置与数据均不改变。
+      </figcaption>
+      <p class="src">来源：docs/images/ddgivolume-movement-isv.gif；docs/DDGIVolume.md:686-716</p>
+    </figure>
+
+    <h4>驱动方式</h4>
+
+    <p>
+      应用每帧调用 <code>SetScrollAnchor()</code> 给出一个世界坐标，volume 会尽量把
+      active space 的有效原点推到该位置。实际推进发生在 <code>DDGIVolume::Update()</code> 中
+      （<code>DDGIVolume.cpp:104-110</code>）：若 <code>movementType</code> 为 Scrolling，
+      则调用 <code>ComputeScrolling()</code>。
+    </p>
+
+    <h4>步长对齐到整格</h4>
+
+    <p>
+      <code>ComputeScrolling()</code> 先求"有效原点"到锚点的位移，再把位移量化成整数格：
+    </p>
+
+    <pre>float3 translation = m_probeScrollAnchor - GetOrigin();
+m_probeScrollDirections =
+    { Sign(translation.x), Sign(translation.y), Sign(translation.z) };
+
+int3 scroll =
+{
+    rtxgi::AbsFloor(translation.x / m_desc.probeSpacing.x),
+    rtxgi::AbsFloor(translation.y / m_desc.probeSpacing.y),
+    rtxgi::AbsFloor(translation.z / m_desc.probeSpacing.z),
+};
+
+if (scroll.x != 0) { m_probeScrollOffsets.x += scroll.x; m_probeScrollClear[0] = true; }
+if (scroll.y != 0) { m_probeScrollOffsets.y += scroll.y; m_probeScrollClear[1] = true; }
+if (scroll.z != 0) { m_probeScrollOffsets.z += scroll.z; m_probeScrollClear[2] = true; }</pre>
+    <p class="src">来源：rtxgi-sdk/src/ddgi/DDGIVolume.cpp:399-438</p>
+
+    <p>三个要点：</p>
+
+    <ul>
+      <li>
+        这里的 <code>GetOrigin()</code> 是<b>有效原点</b>，而不是 <code>desc.origin</code>。
+        对滚动 volume 它返回 <code>desc.origin + scrollOffsets × probeSpacing</code>
+        （<code>DDGIVolume.cpp:211-218</code>）。所以位移是相对当前位置算的，
+        每帧只累加增量，不会重复计入。
+      </li>
+      <li>
+        <code>AbsFloor</code> 是向零取整：<code>value &gt;= 0 ? floor(value) : ceil(value)</code>
+        （<code>src/Math.cpp:29-32</code>）。位移不足一格时不推进。
+      </li>
+      <li>
+        方向被单独记下来（<code>Sign</code>），因为后面清层要用到它。
+      </li>
+    </ul>
+
+    <h4>偏移量是环形的</h4>
+
+    <p>
+      GPU 侧不使用网格坐标直接寻址，而是先加偏移、再对探针数取模
+      （<code>ProbeIndexing.hlsl:287-290</code>）：
+    </p>
+
+    <pre>int DDGIGetScrollingProbeIndex(int3 probeCoords, DDGIVolumeDescGPU volume)
+{
+    int3 coords = (probeCoords + volume.probeScrollOffsets + volume.probeCounts)
+                  % volume.probeCounts;
+    return DDGIGetProbeIndex(coords, volume);
+}</pre>
+
+    <p>
+      先加 <code>probeCounts</code> 再取模，是为了处理负偏移 —— HLSL 的 <code>%</code>
+      结果符号跟被除数一致，负数直接取模会得到负值。
+    </p>
+
+    <p>
+      于是探针纹理成了一段环形缓冲区：网格坐标 <span class="fx v">g</span> 读到的存储槽
+      随偏移推进而改变，走到末端后绕回开头。这也解释了滚动为什么不需要搬运数据 ——
+      改变的只是"哪个网格坐标读哪个存储槽"这一层映射。
+    </p>
+
+    <h4>要清零哪一层</h4>
+
+    <p>
+      绕回意味着某个存储槽会被要求提供一个它从未计算过的世界位置的数据，该槽必须清零。
+      判断全在 <code>DDGIClearScrolledPlane</code> 里（<code>ProbeIndexing.hlsl:295-311</code>）：
+    </p>
+
+    <pre>if (volume.probeScrollClear[planeIndex]) {
+    int offset     = volume.probeScrollOffsets[planeIndex];
+    int probeCount = volume.probeCounts[planeIndex];
+    int direction  = volume.probeScrollDirections[planeIndex];
+
+    int coord = 0;
+    if (direction) coord = (probeCount + (offset - 1)) % probeCount;  // 正方向
+    else           coord = (probeCount + (offset % probeCount)) % probeCount;  // 负方向
+
+    if (probeCoords[planeIndex] == coord) return true;
+}
+return false;</pre>
+
+    <p>两点值得注意：</p>
+
+    <ul>
+      <li>
+        这里的 <code>probeCoords</code> 是<b>存储坐标</b>，来自
+        <code>DDGIGetProbeCoords(probeIndex, volume)</code>
+        （<code>ProbeBlendingCS.hlsl:372</code>），不是滚动后用于世界位置的网格坐标。
+        所以判断完全不需要几何信息，只凭偏移与方向即可算出。
+      </li>
+      <li>
+        <code>ComputeScrolling()</code> 每个轴每次最多置一个 <code>probeScrollClear</code> 标志，
+        因此每步最多清零一层。
+      </li>
+    </ul>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 512 250" role="img" aria-label="探针纹理作为环形缓冲区，沿正方向滚动时被清零的存储槽。偏移为 0 时没有层被清零；偏移为 1 时清零存储槽 0；偏移为 2 时清零存储槽 1，依次推进。">
+<text class="band" x="12" y="16">沿正方向滚动：每步清零一个存储槽</text>
+<rect class="cell-hi" x="356" y="6" width="14" height="14" rx="3"/>
+<text class="al" x="376" y="17">被清零，重新累积</text>
+<text class="t" x="12" y="40">offset = 0（未滚动）</text>
+<rect class="cell" x="12" y="50" width="72" height="40" rx="4"/>
+<text class="s" x="48" y="74" text-anchor="middle">存储 0</text>
+<rect class="cell" x="92" y="50" width="72" height="40" rx="4"/>
+<text class="s" x="128" y="74" text-anchor="middle">存储 1</text>
+<rect class="cell" x="172" y="50" width="72" height="40" rx="4"/>
+<text class="s" x="208" y="74" text-anchor="middle">存储 2</text>
+<rect class="cell" x="252" y="50" width="72" height="40" rx="4"/>
+<text class="s" x="288" y="74" text-anchor="middle">存储 3</text>
+<rect class="cell" x="332" y="50" width="72" height="40" rx="4"/>
+<text class="s" x="368" y="74" text-anchor="middle">存储 4</text>
+<rect class="cell" x="412" y="50" width="72" height="40" rx="4"/>
+<text class="s" x="448" y="74" text-anchor="middle">存储 5</text>
+<text class="t" x="12" y="116">offset = 1</text>
+<rect class="cell-hi" x="12" y="126" width="72" height="40" rx="4"/>
+<text class="s" x="48" y="143" text-anchor="middle">存储 0</text>
+<text class="al" x="48" y="159" text-anchor="middle">清零</text>
+<rect class="cell" x="92" y="126" width="72" height="40" rx="4"/>
+<text class="s" x="128" y="150" text-anchor="middle">存储 1</text>
+<rect class="cell" x="172" y="126" width="72" height="40" rx="4"/>
+<text class="s" x="208" y="150" text-anchor="middle">存储 2</text>
+<rect class="cell" x="252" y="126" width="72" height="40" rx="4"/>
+<text class="s" x="288" y="150" text-anchor="middle">存储 3</text>
+<rect class="cell" x="332" y="126" width="72" height="40" rx="4"/>
+<text class="s" x="368" y="150" text-anchor="middle">存储 4</text>
+<rect class="cell" x="412" y="126" width="72" height="40" rx="4"/>
+<text class="s" x="448" y="150" text-anchor="middle">存储 5</text>
+<text class="t" x="12" y="192">offset = 2</text>
+<rect class="cell" x="12" y="202" width="72" height="40" rx="4"/>
+<text class="s" x="48" y="226" text-anchor="middle">存储 0</text>
+<rect class="cell-hi" x="92" y="202" width="72" height="40" rx="4"/>
+<text class="s" x="128" y="219" text-anchor="middle">存储 1</text>
+<text class="al" x="128" y="235" text-anchor="middle">清零</text>
+<rect class="cell" x="172" y="202" width="72" height="40" rx="4"/>
+<text class="s" x="208" y="226" text-anchor="middle">存储 2</text>
+<rect class="cell" x="252" y="202" width="72" height="40" rx="4"/>
+<text class="s" x="288" y="226" text-anchor="middle">存储 3</text>
+<rect class="cell" x="332" y="202" width="72" height="40" rx="4"/>
+<text class="s" x="368" y="226" text-anchor="middle">存储 4</text>
+<rect class="cell" x="412" y="202" width="72" height="40" rx="4"/>
+<text class="s" x="448" y="226" text-anchor="middle">存储 5</text>
+</svg>
+      </div>
+      <figcaption>
+        沿正方向滚动时被清零的存储槽。偏移每前进一格，清零的槽号加一；
+        绕满 probeCounts 格后回到起点，每个槽恰好各轮到一次。
+        负方向的推进顺序相反，从另一端（probeCount &minus; 1）开始向内走。
+      </figcaption>
+    </figure>
+
+    <p>
+      清零发生在混合阶段（<code>ProbeBlendingCS.hlsl:376-385</code>）：命中被清零层的探针，
+      本帧直接写入 <code>float4(0, 0, 0, 1)</code> 并提前返回，既不混合也不读历史值。
+      此后它从零重新累积 —— 这正是"重新收敛"的含义。irradiance 与 distance
+      两张纹理都会走这条路径。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">一次跳多格时的情况</span>
+      <p>
+        <code>scroll</code> 可以大于 1。若锚点在一次更新之间移动了 k 格，偏移量会一次加到
+        <code>offset + k</code>，但清零标志只有一个。此时新失效的存储槽有 k 个，
+        却只有 <code>(offset + k &minus; 1) mod counts</code> 这一个被清零，
+        其余 k &minus; 1 个会带着旧位置的数据继续参与着色，直到下一轮绕回才被处理。
+      </p>
+      <p>
+        缓步移动（每次更新最多一格）时不会出现这一情况，每步恰好只新产生一层失效。
+        这也是把 volume 锚定到相机或角色这类连续运动的用法更常见的原因。
+      </p>
+    </div>
+
+    <h4>偏移量为何必须周期归零</h4>
+
+    <p>
+      偏移量打包进常量缓冲时要压成每轴 15 位有符号数
+      （<code>DDGIVolume.cpp:185-187</code>），一直累加必然溢出。
+      因此 <code>ComputeScrolling()</code> 开头会先调用 <code>ScrollReset()</code>：
+    </p>
+
+    <pre>if (m_probeScrollOffsets[planeIndex] != 0 &amp;&amp;
+    (m_probeScrollOffsets[planeIndex] % m_desc.probeCounts[planeIndex] == 0))
+{
+    m_desc.origin[planeIndex] += ((float)m_desc.probeCounts[planeIndex]
+        * m_desc.probeSpacing[planeIndex]) * (float)m_probeScrollDirections[planeIndex];
+    m_probeScrollOffsets[planeIndex] = 0;
+}</pre>
+    <p class="src">来源：rtxgi-sdk/src/ddgi/DDGIVolume.cpp:390-394</p>
+
+    <p>
+      偏移量达到探针数的整数倍时，把这一段距离加进 <code>origin</code>，偏移量归零。
+      这是纯粹的重参数化：<code>origin + offsets × probeSpacing</code> 的值不变，
+      探针的世界位置不变，取模映射也不变（模 <code>probeCounts</code> 下两者等价），
+      只是换一种写法避免溢出。
+    </p>
+
+    <h4>与世界变换的关系</h4>
+
+    <ul>
+      <li>
+        <b>旋转被忽略</b>。滚动 volume 在计算探针世界位置与查询时都跳过旋转分支，
+        由 <code>IsVolumeMovementScrolling()</code> 判断
+        （<code>ProbeCommon.hlsl:40</code>、<code>ProbeIndexing.hlsl:142</code>、
+        <code>Irradiance.hlsl:86</code>）。文档也明确说明滚动 volume 忽略旋转变换。
+      </li>
+      <li>
+        <b>平移仍可用</b>。若整片空间本身在移动（车厢、电梯），用 <code>SetOrigin()</code>
+        平移 volume 即可，与滚动逻辑互相独立。
+      </li>
+    </ul>
+
+    <div class="selftest" data-id="st-13">
+      <input type="checkbox" class="cb" id="cb-st-13">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明每项优化解决的具体问题或其节省的开销。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 14 ================= -->
+  <section class="ch" id="ch-14" data-chapter="14 · 文档阅读顺序">
+    <div class="ch-head">
+      <span class="ch-num">第 14 章</span>
+      <h2>仓库文档的阅读顺序</h2>
+    </div>
+
+    <p>
+      仓库的文档按写作目的可分为三类。以下分类为本文作者的归纳，非仓库官方说明。
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>类别</th><th>文件</th><th>面向的读者</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">选型</td>
+            <td><code>Algorithms.md</code>；<code>Integration.md</code> 的大部分</td>
+            <td>评估是否采用该技术的开发者</td>
+          </tr>
+          <tr>
+            <td class="mono">原理</td>
+            <td><code>Math.md</code>；<code>DDGIVolume.md:686-809</code></td>
+            <td>需要理解算法本身的读者</td>
+          </tr>
+          <tr>
+            <td class="mono">集成</td>
+            <td><code>ShaderAPI.md</code>；shader 源码</td>
+            <td>需要动手接入的开发者</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note-box">
+      <span class="tag">关于 Algorithms.md</span>
+      <p>
+        该文件共 37 行，属于选型文档，不包含算法描述。其实际内容为四点：
+      </p>
+      <p>
+        一、预计算探针无法处理动态遮挡，导致漏光；<br>
+        二、DDGI 通过 GPU 光线追踪、快速探针更新与统计遮挡测试解决该问题；<br>
+        三、局限为光照信号低频、存在时间延迟、显存占用较高；<br>
+        四、因此适合与 RTAO 配合使用。
+      </p>
+      <p>
+        若以理解算法为目的阅读该文件，会得到"没有实质内容"的印象。
+        这不属于理解偏差，而是文档定位不同。
+      </p>
+    </div>
+
+    <h3>逐章对照</h3>
+
+    <p>
+      下表把讲义每一章映射到仓库中的具体位置。行号为本地 v1.3 分支实测，
+      供直接定位；若之后的版本改动过文件，位置会偏移。
+    </p>
+
+    <h4>第一部分 · 理论</h4>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>讲义</th><th>仓库位置</th><th>读什么</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">00</td>
+            <td class="mono">docs/Algorithms.md</td>
+            <td>全 37 行。只作背景阅读 —— 它是选型文档，不含算法描述</td>
+          </tr>
+          <tr>
+            <td class="mono">01–02</td>
+            <td class="mono">docs/Algorithms.md</td>
+            <td>同上。注意"局限"那一段对低频与延迟的表述</td>
+          </tr>
+          <tr>
+            <td class="mono">03</td>
+            <td class="mono">docs/Math.md:3-30</td>
+            <td>Irradiance 一节：radiance 与 irradiance 的定义与量纲</td>
+          </tr>
+          <tr>
+            <td class="mono">04</td>
+            <td class="mono">docs/Math.md:31-81<br>
+                include/Common.hlsl:55-63<br>
+                include/ProbeRayCommon.hlsl:113-134<br>
+                ProbeBlendingCS.hlsl:400-561</td>
+            <td>蒙特卡洛估计量、方向生成、光线数据的写入与累积。本讲义最重的一章</td>
+          </tr>
+          <tr>
+            <td class="mono">05</td>
+            <td class="mono">include/ProbeOctahedral.hlsl</td>
+            <td>全 75 行，只有正映射与逆映射两个函数，可以直接读完</td>
+          </tr>
+          <tr>
+            <td class="mono">06</td>
+            <td class="mono">Irradiance.hlsl:65-204<br>
+                include/ProbeIndexing.hlsl:136-155</td>
+            <td>查询入口的完整函数，以及 8 探针的定位方式</td>
+          </tr>
+          <tr>
+            <td class="mono">07</td>
+            <td class="mono">docs/DDGIVolume.md:718-734</td>
+            <td>Relocation 一节的动机部分（漏光的两种成因）</td>
+          </tr>
+          <tr>
+            <td class="mono">08</td>
+            <td class="mono">Irradiance.hlsl:131-141<br>
+                ProbeBlendingCS.hlsl:470-502</td>
+            <td>距离图的读取与写入，含 <code>2.f *</code> 那个因子的来源</td>
+          </tr>
+          <tr>
+            <td class="mono">09</td>
+            <td class="mono">Irradiance.hlsl:142-157</td>
+            <td>共 16 行，Chebyshev 权重的全部实现</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h4>第二部分 · 工程</h4>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>讲义</th><th>仓库位置</th><th>读什么</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">10</td>
+            <td class="mono">docs/DDGIVolume.md:474-652<br>
+                include/ProbeIndexing.hlsl:23-236<br>
+                DDGIVolumeDescGPU.h:47-80</td>
+            <td>纹理布局、索引算术、打包后的常量结构</td>
+          </tr>
+          <tr>
+            <td class="mono">11</td>
+            <td class="mono">ProbeBlendingCS.hlsl:505-561</td>
+            <td>hysteresis 与两项自适应调整。注意 <code>probeHysteresis</code> 是旧值的权重</td>
+          </tr>
+          <tr>
+            <td class="mono">12</td>
+            <td class="mono">docs/Integration.md:13-90<br>
+                samples/test-harness/shaders/ddgi/ProbeTraceRGS.hlsl<br>
+                samples/test-harness/shaders/IndirectCS.hlsl:75-108</td>
+            <td>更新侧与查询侧的完整链路。从这里开始才需要看 samples 目录</td>
+          </tr>
+          <tr>
+            <td class="mono">13</td>
+            <td class="mono">docs/DDGIVolume.md:686-809<br>
+                ProbeRelocationCS.hlsl<br>
+                ProbeClassificationCS.hlsl<br>
+                ReductionCS.hlsl<br>
+                src/ddgi/DDGIVolume.cpp:390-482</td>
+            <td>四项优化各自的着色器，以及 CPU 侧的驱动逻辑。第一次需要读 C++</td>
+          </tr>
+          <tr>
+            <td class="mono">14</td>
+            <td class="mono">—</td>
+            <td>本章即为路线图</td>
+          </tr>
+          <tr>
+            <td class="mono">15</td>
+            <td class="mono">docs/QuickStart.md<br>
+                samples/test-harness/config/*.ini</td>
+            <td>编译运行，然后按讲义第 15 章改配置做实验</td>
+          </tr>
+          <tr>
+            <td class="mono">16</td>
+            <td class="mono">ChangeLog.md</td>
+            <td>查某个机制何时加入、有没有被修过</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>阅读方法</h3>
+
+    <ol>
+      <li>
+        <b>不要通读 <code>DDGIVolume.md</code>。</b>
+        它共 810 行，其中大半是 API 说明与资源绑定样板。只有 686-809 是机制描述，
+        用 <code>sed -n '686,809p' docs/DDGIVolume.md</code> 取这一段即可。
+      </li>
+      <li>
+        <b>每章走三遍：讲义 → 源码 → 自测。</b>
+        先读讲义建立框架，再打开对应源码逐行核对，最后回来做自测题。
+        讲义中每个数值都标注了出处，可以直接跳过去验证 —— 这是检验理解最快的方式。
+      </li>
+      <li>
+        <b><code>Math.md</code> 放在最后读。</b>
+        它只有 81 行，是第 03、04 两章的浓缩形式。先有讲义打底再读它，能起到校验作用；
+        反过来先读会看不懂。
+      </li>
+      <li>
+        <b>先只读 <code>.hlsl</code>，不碰 C++。</b>
+        算法全在 <code>rtxgi-sdk/shaders/</code> 下，约 2600 行。
+        C++ 侧（<code>DDGIVolume.cpp</code> 519 行）主要是资源管理与驱动，
+        到第 13 章才需要看。
+      </li>
+      <li>
+        <b><code>samples/test-harness/</code> 到第 12 章再碰。</b>
+        那是宿主渲染器的示例实现，不是算法本身。
+        第 12 章之前读它只会被光线追踪的管线代码分散注意力。
+      </li>
+    </ol>
+
+    <h3>一次通读的节奏</h3>
+
+    <p>按内容量，建议分成七次：</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>次序</th><th>讲义章节</th><th>配套源码</th><th>工作量</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="num">1</td><td>00–03</td><td class="mono">Algorithms.md（37 行）<br>Math.md:3-30</td><td>轻</td></tr>
+          <tr><td class="num">2</td><td>04–05</td><td class="mono">Common.hlsl<br>ProbeRayCommon.hlsl<br>ProbeOctahedral.hlsl</td><td>重</td></tr>
+          <tr><td class="num">3</td><td>06–09</td><td class="mono">Irradiance.hlsl（206 行，可整读）</td><td>中</td></tr>
+          <tr><td class="num">4</td><td>10–11</td><td class="mono">ProbeIndexing.hlsl<br>ProbeBlendingCS.hlsl</td><td>中</td></tr>
+          <tr><td class="num">5</td><td>12</td><td class="mono">Integration.md:13-90<br>IndirectCS.hlsl</td><td>轻</td></tr>
+          <tr><td class="num">6</td><td>13</td><td class="mono">DDGIVolume.md:686-809<br>三个优化的 CS<br>DDGIVolume.cpp:390-482</td><td>重</td></tr>
+          <tr><td class="num">7</td><td>15–16</td><td class="mono">QuickStart.md<br>config/*.ini</td><td>需要可运行环境</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      第 2 次和第 6 次最重，可以再拆。第 12 章之后可以停一下 ——
+      此时已能完整解释 DDGI 的每一帧在做什么，剩下的都是优化。
+    </p>
+
+    <div class="selftest" data-id="st-14">
+      <input type="checkbox" class="cb" id="cb-st-14">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明三类文档各自的定位，并判断以理解原理为目的时应阅读哪一类。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 15 ================= -->
+  <section class="ch" id="ch-15" data-chapter="15 · 实验">
+    <div class="ch-head">
+      <span class="ch-num">第 15 章</span>
+      <h2>实验</h2>
+    </div>
+
+    <p>
+      以下实验需要 Windows 或 Linux 环境，以及支持 DXR 或 Vulkan Ray Tracing 的 GPU。
+      各项实验对应前述章节中的具体机制。
+    </p>
+
+    <div class="selftest" data-id="st-15">
+      <input type="checkbox" class="cb" id="cb-st-15">
+      <div>
+        <span class="st-label">实验 01</span>
+        <p class="st-q">按 <code>docs/QuickStart.md</code> 编译并运行 Test Harness</p>
+        <p class="st-a">
+          CMake 会自动下载 DXC 编译器和 D3D12 Agility SDK。
+          Windows 使用 D3D12 后端，Linux 使用 Vulkan 后端，功能等价。
+        </p>
+      </div>
+    </div>
+
+    <div class="selftest" data-id="st-16">
+      <input type="checkbox" class="cb" id="cb-st-16">
+      <div>
+        <span class="st-label">实验 02 · 对应第 07、13 章</span>
+        <p class="st-q">关闭 probe relocation，观察漏光</p>
+        <p class="st-a">
+          关闭后，墙角与家具内部会出现错误的亮斑，来源是位于几何体内部的探针。
+          仓库提供了 <code>ddgivolume-relocation-on.jpg</code> 与
+          <code>-off.jpg</code> 对比图。
+        </p>
+      </div>
+    </div>
+
+    <div class="selftest" data-id="st-17">
+      <input type="checkbox" class="cb" id="cb-st-17">
+      <div>
+        <span class="st-label">实验 03 · 对应第 04 章</span>
+        <p class="st-q">减少每个探针的光线数，观察噪声变化</p>
+        <p class="st-a">
+          降低光线数后画面噪声增加，对应第 04 章中蒙特卡洛估计的方差。
+          同时可观察第 11 章的时间累积对该噪声的抑制效果。
+        </p>
+      </div>
+    </div>
+
+    <div class="selftest" data-id="st-18">
+      <input type="checkbox" class="cb" id="cb-st-18">
+      <div>
+        <span class="st-label">实验 04 · 对应第 11 章</span>
+        <p class="st-q">调整 <code>probeHysteresis</code>，观察响应速度与稳定性的权衡</p>
+        <p class="st-a">
+          提高该值画面更稳定，但光照变化后收敛更慢；降低则相反。
+          该参数在不同场景配置中均为 0.97。
+        </p>
+      </div>
+    </div>
+
+    <div class="selftest" data-id="st-19">
+      <input type="checkbox" class="cb" id="cb-st-19">
+      <div>
+        <span class="st-label">实验 05 · 对应第 06 章</span>
+        <p class="st-q">调整 <code>probeSpacing</code>，观察显存占用与光照精度的权衡</p>
+        <p class="st-a">
+          间距过大会丢失光照细节，过小则显存与计算量显著增加。
+          各场景配置中的取值差异较大（0.3 至 11 米），可与场景尺度对照观察。
+        </p>
+      </div>
+    </div>
+
+    <div class="selftest" data-id="st-20">
+      <input type="checkbox" class="cb" id="cb-st-20">
+      <div>
+        <span class="st-label">实验 06 · 对应第 04、05 章</span>
+        <p class="st-q">使用 DDGIVisualizations 查看探针纹理</p>
+        <p class="st-a">
+          将 irradiance、distance、probe data 纹理直接显示。
+          可用于核验第 05 章中八面体映射的实际排布，包括展开接缝的位置与形态。
+        </p>
+      </div>
+    </div>
+
+    <div class="selftest" data-id="st-21">
+      <input type="checkbox" class="cb" id="cb-st-21">
+      <div>
+        <span class="st-label">实验 07 · 对应第 01 章</span>
+        <p class="st-q">与路径追踪结果对比</p>
+        <p class="st-a">
+          <code>PathTraceRGS.hlsl</code> 是完整的路径追踪实现，可作为参考解。
+          在同一场景与视角下切换两者，可直接观察第 01 章所述方差的具体表现，
+          以及 DDGI 在低频光照上的近似程度。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 16 ================= -->
+  <section class="ch" id="ch-16" data-chapter="16 · 常见误区">
+    <div class="ch-head">
+      <span class="ch-num">第 16 章</span>
+      <h2>常见误区</h2>
+    </div>
+
+    <ul class="pitfalls">
+      <li>
+        <span>
+          <b><code>majercik21dynamic.pdf</code> 不是 DDGI 的原始论文。</b>
+          其标题为 <i>Dynamic Diffuse Global Illumination Resampling</i>，
+          发表于 2021 年，内容建立在 DDGI 之上。应先行阅读
+          <code>Majercik2019Irradiance.pdf</code>。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b><code>docs/2007.14394v1.pdf</code> 不是 DDGI 相关论文。</b>
+          该文为 <i>Signed Distance Fields Dynamic Diffuse Global Illumination</i>，
+          将 RTXGI 作为对比基线，属于第三方工作。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b><code>ue4-plugin/</code> 目录可以跳过。</b>
+          该目录为引擎集成代码，与算法理解无关。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b><code>DDGIVolume_D3D12.cpp</code>（1778 行）不含算法。</b>
+          该文件是图形 API 的管线与资源管理代码。
+          算法实现位于 <code>rtxgi-sdk/shaders/ddgi/</code>，
+          其中承载核心逻辑的是 <code>Irradiance.hlsl</code> 与
+          <code>ProbeBlendingCS.hlsl</code>。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>「八面体映射的畸变小于 Cube map」这一说法不成立。</b>
+          两者的面积畸变比值均为 3√3，详见第 05 章。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>遇到与推导不符的常数时，先查阅注释。</b>
+          该代码库中多处为减少 GPU 分支而牺牲可读性，
+          例如 <code>Irradiance.hlsl:138</code> 中距离值的 <code>2.f *</code>。
+        </span>
+      </li>
+    </ul>
+
+    <div class="selftest" data-id="st-22">
+      <input type="checkbox" class="cb" id="cb-st-22">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能指出版本与文档定位上的常见误判，并知道常数异常时先查注释。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    基于本地仓库 RTXGI SDK v1.3（分支 main）<br>
+    文中标注来源的数值取自仓库源码与文档；第 05 章的面积畸变数据为作者计算<br>
+    勾选进度保存在当前浏览器，更换设备或清除浏览器数据后丢失
+  </footer>
+
+  <p class="sr" id="live" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+  var KEY = 'ddgi-study-progress-v1';
+
+  var store = null;
+  try {
+    localStorage.setItem('__t', '1');
+    localStorage.removeItem('__t');
+    store = localStorage;
+  } catch (e) { store = null; }
+
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.cb'));
+  var rows = boxes.map(function (b) { return b.closest('.selftest'); });
+
+  var doneCount = document.getElementById('doneCount');
+  var totalCount = document.getElementById('totalCount');
+  var pctEl = document.getElementById('pct');
+  var fill = document.getElementById('fill');
+  var pbar = document.getElementById('pbar');
+  var hint = document.getElementById('hint');
+  var live = document.getElementById('live');
+  var curCh = document.getElementById('curCh');
+  var filterBtn = document.getElementById('filterBtn');
+  var resetBtn = document.getElementById('resetBtn');
+
+  var onlyOpen = false;
+  var saveWarned = false;
+
+  var saved = {};
+  if (store) {
+    try { saved = JSON.parse(store.getItem(KEY)) || {}; } catch (e) { saved = {}; }
+  }
+  boxes.forEach(function (b, i) {
+    var id = rows[i].getAttribute('data-id');
+    if (id && saved[id]) b.checked = true;
+  });
+
+  function persist() {
+    var state = {};
+    boxes.forEach(function (b, i) {
+      var id = rows[i].getAttribute('data-id');
+      if (id && b.checked) state[id] = 1;
+    });
+    if (store) {
+      try { store.setItem(KEY, JSON.stringify(state)); } catch (e) { store = null; }
+    }
+    if (!store && !saveWarned) {
+      saveWarned = true;
+      hint.textContent = '此环境无法保存进度';
+    }
+  }
+
+  function render(announce) {
+    var done = 0;
+    boxes.forEach(function (b, i) {
+      rows[i].classList.toggle('is-done', b.checked);
+      if (b.checked) done++;
+    });
+    var total = boxes.length;
+    var pct = total ? Math.round((done / total) * 100) : 0;
+    doneCount.textContent = done;
+    totalCount.textContent = total;
+    pctEl.textContent = pct + '%';
+    fill.style.width = pct + '%';
+    pbar.setAttribute('aria-valuenow', String(pct));
+    if (announce) live.textContent = '已完成 ' + done + ' / ' + total + '，' + pct + '%';
+  }
+
+  rows.forEach(function (row, i) {
+    row.addEventListener('click', function (e) {
+      if (e.target === boxes[i] || (e.target.closest && e.target.closest('label'))) return;
+      var sel = window.getSelection && window.getSelection();
+      if (sel && String(sel) !== '') return;
+      boxes[i].checked = !boxes[i].checked;
+      boxes[i].dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  boxes.forEach(function (b, i) {
+    b.addEventListener('change', function () {
+      persist();
+      rows[i].hidden = onlyOpen && b.checked;
+      render(true);
+    });
+  });
+
+  filterBtn.addEventListener('click', function () {
+    onlyOpen = !onlyOpen;
+    filterBtn.setAttribute('aria-pressed', onlyOpen ? 'true' : 'false');
+    filterBtn.textContent = onlyOpen ? '显示全部' : '只看未完成';
+    rows.forEach(function (el) {
+      el.hidden = onlyOpen && el.classList.contains('is-done');
+    });
+  });
+
+  var armed = false, armTimer = null;
+  function disarm() {
+    armed = false;
+    clearTimeout(armTimer);
+    resetBtn.removeAttribute('data-armed');
+    resetBtn.textContent = '重置进度';
+    if (hint.textContent.indexOf('将清除') === 0) hint.textContent = '';
+  }
+  resetBtn.addEventListener('click', function () {
+    if (!armed) {
+      armed = true;
+      resetBtn.setAttribute('data-armed', 'true');
+      resetBtn.textContent = '再次点击以确认';
+      hint.textContent = '将清除全部 ' + boxes.length + ' 条记录';
+      armTimer = setTimeout(disarm, 5000);
+      return;
+    }
+    disarm();
+    boxes.forEach(function (b) { b.checked = false; });
+    persist();
+    rows.forEach(function (el) { el.hidden = false; });
+    render(true);
+    hint.textContent = '进度已重置';
+  });
+
+  var chapters = Array.prototype.slice.call(document.querySelectorAll('[data-chapter]'));
+  if ('IntersectionObserver' in window && chapters.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) curCh.textContent = en.target.getAttribute('data-chapter');
+      });
+    }, { rootMargin: '0px 0px -88% 0px', threshold: 0 });
+    chapters.forEach(function (c) { io.observe(c); });
+  }
+
+  totalCount.textContent = boxes.length;
+  render(false);
+})();
+</script>
