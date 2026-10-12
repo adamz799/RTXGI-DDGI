@@ -502,7 +502,7 @@ footer {
     </div>
 
     <p>
-      渲染一个像素，即求从该表面点沿视线方向射出的光量。表面自身不发光，
+      渲染一个像素，即求从该着色点沿视线方向射出的光量。表面自身不发光，
       射出的是它反射的光，所以需要先确定该点接收到的光量。
     </p>
 
@@ -542,12 +542,12 @@ footer {
     </figure>
 
     <p>
-      直接光的计算方式是自表面点向光源投射一条光线，根据是否被遮挡判定明暗。
+      直接光的计算方式是自着色点向光源投射一条光线，根据是否被遮挡判断明暗。
       单次光线求交即可完成。
     </p>
 
     <p>
-      间接光则不然。要计算地板从墙面接收的光量，需要先知道墙面上每一点接收的光量；
+      间接光则不然。要计算地板从墙面接收的光量，需要先知道墙面上每一点接收的光量。
       而墙面的光又来自地板、天花板，以及其他所有表面之间的相互反射。
     </p>
 
@@ -850,7 +850,7 @@ footer {
 
     <p>
       探针存储的球面函数不是直接观测得到的 —— 它由探针自身投射光线，再把结果积分而来。
-      本章说明这个过程：光线如何选取、返回值是什么量、以及如何从这些量得到第 03 章定义的辐照度。
+      本章说明这个过程：光线如何选取、返回值是什么量、以及如何从这些量得到第 03 章定义的 irradiance。
     </p>
 
     <h3>从探针投射光线</h3>
@@ -2045,7 +2045,7 @@ footer {
         <code>frac(sampleIndex * b)</code> 取小数部分，等价于对 2π 取模，得到方位角。
       </li>
       <li>
-        <code>cosTheta</code> 就是上面的 <span class="fx v">z</span>；
+        <code>cosTheta</code> 就是上面的 <span class="fx v">z</span>。
         这样命名是因为 <span class="fx v">z</span> = cos&thinsp;θ。
       </li>
       <li>
@@ -2064,7 +2064,7 @@ footer {
 
     <p>
       光线数量由编译期宏 <code>RTXGI_DDGI_BLEND_RAYS_PER_PROBE</code> 指定，
-      无默认值。文档中的内存计算示例使用 256 与 128；Test Harness 的 Cornell 场景使用 256。
+      无默认值。文档中的内存计算示例使用 256 与 128。Test Harness 的 Cornell 场景使用 256。
     </p>
     <p class="src">
       来源：docs/DDGIVolume.md:380-381、617、634；samples/test-harness/config/cornell.ini:97
@@ -2125,8 +2125,8 @@ footer {
     <figure class="fig">
       <img class="doc-img fit" src="img/probe-ray-rotation.gif" alt="动画：连续五次更新中探针光线方向的变化。橙色为 32 条固定光线，位置始终不变；深色为当前这次更新的非固定光线，每次更新整体换一个朝向；浅灰为之前各次更新的方向。">
       <figcaption>
-        连续五次更新。橙色是 32 条固定光线，位置始终不变；深色是当前这次更新的
-        224 条非固定光线，每次更新整体换一个朝向；浅灰是之前各次更新的方向。
+        连续五次更新。橙色是 32 条固定光线，位置始终不变。深色是当前这次更新的
+        224 条非固定光线，每次更新整体换一个朝向。浅灰是之前各次更新的方向。
         橙色点一直不动，深色点在跳，而浅灰点逐次铺满球面 ——
         这正是旋转的目的：让累积覆盖的方向比单帧多得多。
       </figcaption>
@@ -2140,7 +2140,7 @@ footer {
     <div class="note-box">
       <span class="tag">职责边界</span>
       <p>
-        光线追踪本身不由 DDGI SDK 实现。SDK 只规定从哪个探针、沿哪些方向投射光线；
+        光线追踪本身不由 DDGI SDK 实现。SDK 只规定从哪个探针、沿哪些方向投射光线。
         实际的光线求交与命中着色由宿主渲染器使用其自身的加速结构与着色器完成。
       </p>
       <p>
@@ -2679,7 +2679,7 @@ return normalize(direction);</pre>
         纹理混合是线性运算。混合相邻探针时，参与混合的量必须可加。
       </p>
       <p>
-        平方的平均满足可加性，混合结果仍是正确的平均值；方差<b>不</b>满足可加性。
+        平方的平均满足可加性，混合结果仍是正确的平均值。方差<b>不</b>满足可加性。
         因此存储前者，方差在读取时现算。
       </p>
     </div>
@@ -2724,8 +2724,8 @@ return normalize(direction);</pre>
     </div>
 
     <p>
-      第 08 章的判断是二值的：距离超出平均命中距离即判定为遮挡。
-      直接采用二值判定会产生两个问题。
+      第 08 章的判断是二值的：距离超出平均命中距离即判断为遮挡。
+      直接采用二值判断会产生两个问题。
     </p>
 
     <ol>
@@ -2786,7 +2786,7 @@ return normalize(direction);</pre>
         8×8 的 irradiance 图和 16×16 的距离图。
       </p>
       <p>
-        原因是 irradiance 是低频信号，粗糙采样即可；而 Chebyshev 判断依赖距离分布的准确性，
+        原因是 irradiance 是低频信号，粗糙采样即可。而 Chebyshev 判断依赖距离分布的准确性，
         需要更高分辨率。该差异也可在内存开销上得到解释：距离图是每个探针占用显存最多的资源。
       </p>
       <p class="src">来源：samples/test-harness/config/cornell.ini:98-99；docs/DDGIVolume.md:617-634</p>
@@ -2796,7 +2796,7 @@ return normalize(direction);</pre>
       <input type="checkbox" class="cb" id="cb-st-8">
       <div>
         <span class="st-label">自测</span>
-        <p class="st-q">能说明二值判定的两个问题，以及 Chebyshev 权重如何同时缓解它们。</p>
+        <p class="st-q">能说明二值判断的两个问题，以及 Chebyshev 权重如何同时缓解它们。</p>
       </div>
     </div>
   </section>
@@ -2819,7 +2819,7 @@ return normalize(direction);</pre>
       <h2>显存组织与 UV 换算</h2>
     </div>
     <p>
-      前九章讨论的是算法本身：球面上的辐照度如何求、如何参数化、如何跨探针重建。
+      前九章讨论的是算法本身：球面上的 irradiance 如何求、如何参数化、如何跨探针重建。
       本章转入实现层面 —— 这些数据在显存中如何排布，以及一次查询如何算出它要读的地址。
     </p>
 
@@ -2839,7 +2839,7 @@ return normalize(direction);</pre>
     </p>
 
     <ul>
-      <li>层号 <span class="fx">g<sub>y</sub></span> 成为切片索引；</li>
+      <li>层号 <span class="fx">g<sub>y</sub></span> 成为切片索引。</li>
       <li>层内的两个轴 <span class="fx">g<sub>x</sub></span>、<span class="fx">g<sub>z</sub></span>
           成为切片内的二维位置。</li>
     </ul>
@@ -2947,7 +2947,7 @@ return normalize(direction);</pre>
 
     <ul>
       <li>
-        <b>辐照度图</b>：用表面法线。辐照度图记录的是「法线为 <span class="fx v">n</span>
+        <b>irradiance 图</b>：用表面法线。irradiance 图记录的是「法线为 <span class="fx v">n</span>
         时入射光的半球积分」，查询方向就是 <span class="fx v">n</span>。
       </li>
       <li>
@@ -2958,7 +2958,7 @@ return normalize(direction);</pre>
     </ul>
 
     <p class="src">
-      来源：rtxgi-sdk/shaders/ddgi/Irradiance.hlsl:132（距离图）、:174（辐照度图）
+      来源：rtxgi-sdk/shaders/ddgi/Irradiance.hlsl:132（距离图）、:174（irradiance 图）
     </p>
 
     <p>
@@ -3092,7 +3092,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
     <p class="src">来源：rtxgi-sdk/shaders/ddgi/ProbeBlendingCS.hlsl:534；samples/test-harness/config/cornell.ini:100</p>
 
     <p>
-      <span class="fx v">h</span> 越大，画面越稳定，但对光照变化的响应越慢；
+      <span class="fx v">h</span> 越大，画面越稳定，但对光照变化的响应越慢。
       <span class="fx v">h</span> 越小则相反。
     </p>
 
@@ -3196,7 +3196,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
     
     <figure class="fig">
       <div class="fig-scroll"><img class="doc-img" src="img/ddgi-algorithm.jpg" alt="NVIDIA 幻灯片：场景中布置探针、光线追踪与着色、更新探针、渲染间接光四个阶段。"></div>
-      <figcaption>NVIDIA 官方幻灯片给出的同一流程。最左为探针在场景中的布置；中间两栏为本节描述的更新侧，并展示了 irradiance 与 distance 两张纹理的实际内容；最右为使用探针数据渲染出的间接光照结果。</figcaption><p class="lightbox-hint">来源：docs/images/rtxgi-ddgi-algorithm.jpg（NVIDIA GDC 演示材料）</p>
+      <figcaption>NVIDIA 官方幻灯片给出的同一流程。最左为探针在场景中的布置。中间两栏为本节描述的更新侧，并展示了 irradiance 与 distance 两张纹理的实际内容；最右为使用探针数据渲染出的间接光照结果。</figcaption><p class="lightbox-hint">来源：docs/images/rtxgi-ddgi-algorithm.jpg（NVIDIA GDC 演示材料）</p>
     </figure>
 
     <h3>更新侧（每帧）</h3>
@@ -3323,7 +3323,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
       </div>
       <figcaption>
         三种情形。① 探针埋在墙内，光线从内部打到墙面即为背面命中，沿最近的那次背面命中方向移出。
-        ② 探针贴着墙，最近的正面命中很近；若最远的正面命中方向与之大致反向，就沿最远方向移动。
+        ② 探针贴着墙，最近的正面命中很近。若最远的正面命中方向与之大致反向，就沿最远方向移动。
         ③ 探针附近没有几何体，沿当前偏移的反方向退回网格原位。
       </figcaption>
     </figure>
@@ -3364,7 +3364,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
       <span class="tag">背面距离为何要乘 −5</span>
       <p>
         背面命中在写入光线数据时被存成 <code>−hitT × 0.2</code>：
-        取负是为了与正面命中区分，乘 0.2 是为了削弱这类探针在辐照度采样中的影响。
+        取负是为了与正面命中区分，乘 0.2 是为了削弱这类探针在 irradiance 采样中的影响。
         重定位读取时再乘回 <code>−5</code>，还原成真实距离。
       </p>
       <p class="src">来源：rtxgi-sdk/shaders/ddgi/include/ProbeRayCommon.hlsl:61-73；ProbeRelocationCS.hlsl:167</p>
@@ -3382,7 +3382,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
     <p>
       这一点与情形二的 1 个世界单位上限叠加时会产生一个后果：若
       <code>probeSpacing</code> 本身较小，一次 1 单位的移动归一化后就会超出 0.45，
-      整次移动随即被丢弃。例如 Cornell 配置的间距是 0.3 米，该场景中情形二基本不会生效；
+      代码随即丢弃整次移动。例如 Cornell 配置的间距是 0.3 米，该场景中情形二基本不会生效。
       文档建议的 2 至 3 米间距才是这条路径的正常工作区间。
     </p>
 
@@ -3405,7 +3405,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
     <p class="src">来源：docs/DDGIVolume.md:736-751</p>
     <figure class="fig">
       <div class="fig-scroll"><img class="doc-img" src="img/classification-01.jpg" alt="Sponza 场景中的探针可视化：红色轮廓为被判定休眠的探针，绿色轮廓为活跃探针。"></div>
-      <figcaption>Sponza 场景中的分类结果。红色轮廓的探针已被判定为休眠，它们位于几何体内部或周围没有几何体；绿色轮廓的探针仍在参与光线投射与纹理更新。</figcaption><p class="lightbox-hint">来源：docs/images/ddgivolume-classification-01.jpg</p>
+      <figcaption>Sponza 场景中的分类结果。红色轮廓的探针已标记为休眠，它们位于几何体内部或周围没有几何体；绿色轮廓的探针仍在参与光线投射与纹理更新。</figcaption><p class="lightbox-hint">来源：docs/images/ddgivolume-classification-01.jpg</p>
     </figure>
 
     <h3>Variability（变异性）</h3>
@@ -3418,7 +3418,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
     <h4>为什么需要它</h4>
 
     <p>
-      探针的辐照度是逐次更新累积出来的估计值。即使已经累积了大量样本，
+      探针的 irradiance 是逐次更新累积出来的估计值。即使已经累积了大量样本，
       每个八面体纹素上仍然残留非零的方差 —— 某些纹素甚至可能永远无法完全收敛。
       单帧看上去问题不大（估计值本身是合理的），但这些残差<b>每次更新都在变</b>，
       表现为间接光里持续的低频噪声，在时间上就是可见的抖动。
@@ -3438,10 +3438,10 @@ return float3(uv, coords.z);                                 <span class="c">// 
 
     <ul>
       <li>
-        <span class="fx v">probeIrradianceMean</span>：探针中已累积的历史值，即本次更新之前的值；
+        <span class="fx v">probeIrradianceMean</span>：探针中已累积的历史值，即本次更新之前的值。
       </li>
       <li>
-        <span class="fx v">irradianceSample</span>：本次更新由当前这批光线新算出的值，尚未与历史混合；
+        <span class="fx v">irradianceSample</span>：本次更新由当前这批光线新算出的值，尚未与历史混合。
       </li>
       <li>
         <span class="fx v">result</span>：混合后的新值，等于
@@ -3483,7 +3483,7 @@ return float3(uv, coords.z);                                 <span class="c">// 
 
     <p>
       所以它度量的是：<b>本次新样本与历史累积值之间的差距，相对于当前亮度的比例</b>。
-      累积越充分，新样本越接近历史值，这个比值越小；光照发生变化时它会立刻抬升。
+      累积越充分，新样本越接近历史值，这个比值越小。光照发生变化时它会立刻抬升。
       <span class="fx v">h</span> = 0.97 时 √<span class="fx v">h</span> ≈ 0.985，
       基本就是"本次样本与历史值的相对偏差"。
     </p>
@@ -3612,21 +3612,21 @@ if (!isConverged) selectedVolumes.push_back(volume);</pre>
     <p>三个条件缺一不可：</p>
 
     <ol>
-      <li>该 volume 启用了 variability；</li>
-      <li>已更新超过 16 次 —— 这是预热，用来滤掉早期的偶然低值；</li>
+      <li>该 volume 启用了 variability。</li>
+      <li>已更新超过 16 次 —— 这是预热，用来滤掉早期的偶然低值。</li>
       <li>体积平均变异系数低于阈值。</li>
     </ol>
 
     <p>
       被判为收敛的 volume 不会进入 <code>selectedVolumes</code>，
-      因此<b>连 <code>Update()</code> 都不会被调用</b>。而 <code>Update()</code>
+      因此<b>宿主连 <code>Update()</code> 都不会调用</b>。而 <code>Update()</code>
       正是重算光线随机旋转的地方 —— 暂停更新同时也冻结了旋转。
       这是合理的：既然不再累积新样本，换朝向也没有意义。
     </p>
 
     <p>
       Cornell 配置中该功能默认关闭（<code>probeVariability.enabled=0</code>），
-      阈值为 0.03，即平均每次更新的相对变化低于 3% 就判定为收敛。
+      阈值为 0.03，即平均每次更新的相对变化低于 3% 就判断为收敛。
     </p>
     <p class="src">来源：samples/test-harness/config/cornell.ini:86-87</p>
 
@@ -3713,7 +3713,7 @@ if (scroll.z != 0) { m_probeScrollOffsets.z += scroll.z; m_probeScrollClear[2] =
         （<code>src/Math.cpp:29-32</code>）。位移不足一格时不推进。
       </li>
       <li>
-        方向被单独记下来（<code>Sign</code>），因为后面清层要用到它。
+        代码单独记下方向（<code>Sign</code>），因为后面清层要用到它。
       </li>
     </ul>
 
@@ -3827,7 +3827,7 @@ return false;</pre>
 </svg>
       </div>
       <figcaption>
-        沿正方向滚动时被清零的存储槽。偏移每前进一格，清零的槽号加一；
+        沿正方向滚动时被清零的存储槽。偏移每前进一格，清零的槽号加一。
         绕满 probeCounts 格后回到起点，每个槽恰好各轮到一次。
         负方向的推进顺序相反，从另一端（probeCount &minus; 1）开始向内走。
       </figcaption>
@@ -3882,7 +3882,7 @@ return false;</pre>
 
     <ul>
       <li>
-        <b>旋转被忽略</b>。滚动 volume 在计算探针世界位置与查询时都跳过旋转分支，
+        <b>忽略旋转</b>。滚动 volume 在计算探针世界位置与查询时都跳过旋转分支，
         由 <code>IsVolumeMovementScrolling()</code> 判断
         （<code>ProbeCommon.hlsl:40</code>、<code>ProbeIndexing.hlsl:142</code>、
         <code>Irradiance.hlsl:86</code>）。文档也明确说明滚动 volume 忽略旋转变换。
@@ -3944,9 +3944,9 @@ return false;</pre>
         该文件共 37 行，属于选型文档，不包含算法描述。其实际内容为四点：
       </p>
       <p>
-        一、预计算探针无法处理动态遮挡，导致漏光；<br>
-        二、DDGI 通过 GPU 光线追踪、快速探针更新与统计遮挡测试解决该问题；<br>
-        三、局限为光照信号低频、存在时间延迟、显存占用较高；<br>
+        一、预计算探针无法处理动态遮挡，导致漏光。<br>
+        二、DDGI 通过 GPU 光线追踪、快速探针更新与统计遮挡测试解决该问题。<br>
+        三、局限为光照信号低频、存在时间延迟、显存占用较高。<br>
         四、因此适合与 RTAO 配合使用。
       </p>
       <p>
@@ -3959,7 +3959,7 @@ return false;</pre>
 
     <p>
       下表把讲义每一章映射到仓库中的具体位置。行号为本地 v1.3 分支实测，
-      供直接定位；若之后的版本改动过文件，位置会偏移。
+      供直接定位。若之后的版本改动过文件，位置会偏移。
     </p>
 
     <h4>第一部分 · 理论</h4>
@@ -4095,7 +4095,7 @@ return false;</pre>
       </li>
       <li>
         <b><code>Math.md</code> 放在最后读。</b>
-        它只有 81 行，是第 03、04 两章的浓缩形式。先有讲义打底再读它，能起到校验作用；
+        它只有 81 行，是第 03、04 两章的浓缩形式。先有讲义打底再读它，能起到校验作用。
         反过来先读会看不懂。
       </li>
       <li>
@@ -4201,7 +4201,7 @@ return false;</pre>
         <span class="st-label">实验 04 · 对应第 11 章</span>
         <p class="st-q">调整 <code>probeHysteresis</code>，观察响应速度与稳定性的权衡</p>
         <p class="st-a">
-          提高该值画面更稳定，但光照变化后收敛更慢；降低则相反。
+          提高该值画面更稳定，但光照变化后收敛更慢。降低则相反。
           该参数在不同场景配置中均为 0.97。
         </p>
       </div>
