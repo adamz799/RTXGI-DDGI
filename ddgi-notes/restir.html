@@ -1,0 +1,2643 @@
+<title>ReSTIR 与 DDGI Resampling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400;1,6..72,500&display=swap">
+
+<style>
+:root {
+  --ground:       #F3F5F8;
+  --surface:      #FFFFFF;
+  --surface-2:    #FAFBFC;
+  --ink:          #131923;
+  --ink-soft:     #5A6572;
+  --ink-faint:    #8C97A5;
+  --line:         #E0E5EB;
+  --line-strong:  #C8D1DB;
+  --accent:       #A85B00;
+  --accent-wash:  #FBF1E0;
+  --accent-line:  #E9C994;
+  --on-accent:    #FFFFFF;
+
+  --font-body: "Archivo", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-math: "Newsreader", "Songti SC", "Source Han Serif SC", Georgia, serif;
+
+  --measure: 740px;
+  --radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --ground:      #0E1218;
+    --surface:     #161B23;
+    --surface-2:   #1B212B;
+    --ink:         #E5EAF1;
+    --ink-soft:    #949FAD;
+    --ink-faint:   #6B7787;
+    --line:        #242C37;
+    --line-strong: #38424F;
+    --accent:      #EFA63A;
+    --accent-wash: #241B0C;
+    --accent-line: #4B3717;
+    --on-accent:   #1A1205;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ground:      #0E1218;
+  --surface:     #161B23;
+  --surface-2:   #1B212B;
+  --ink:         #E5EAF1;
+  --ink-soft:    #949FAD;
+  --ink-faint:   #6B7787;
+  --line:        #242C37;
+  --line-strong: #38424F;
+  --accent:      #EFA63A;
+  --accent-wash: #241B0C;
+  --accent-line: #4B3717;
+  --on-accent:   #1A1205;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15.5px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap { max-width: var(--measure); margin-inline: auto; padding-inline: 20px; }
+.main { padding-block: 0 110px; }
+
+/* ---------- sticky bar ---------- */
+.bar {
+  position: sticky;
+  top: env(safe-area-inset-top, 0px);
+  z-index: 20;
+  background: var(--ground);
+  border-bottom: 1px solid var(--line);
+}
+.bar-inner { padding-block: 9px 11px; }
+.bar-top {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 14px; margin-bottom: 8px;
+}
+.bar-title {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar-title .sep { color: var(--ink-faint); font-weight: 400; }
+.bar-title .cur { color: var(--ink-soft); font-weight: 400; }
+.bar-count {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--ink-soft);
+  font-variant-numeric: tabular-nums; white-space: nowrap; flex: none;
+}
+.bar-count b { color: var(--accent); font-weight: 600; }
+.track { height: 3px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.fill {
+  height: 100%; width: 0; border-radius: 999px; background: var(--accent);
+  transition: width .3s cubic-bezier(.4,0,.2,1);
+}
+@media (prefers-reduced-motion: reduce) { .fill { transition: none; } }
+
+/* ---------- hero ---------- */
+.hero { padding-block: 56px 0; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 11px; font-weight: 500;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px;
+}
+h1 {
+  font-size: clamp(30px, 6vw, 41px); line-height: 1.14; font-weight: 700;
+  letter-spacing: -.022em; margin: 0 0 18px; text-wrap: balance;
+}
+.lead { margin: 0; font-size: 16.5px; color: var(--ink-soft); max-width: 58ch; }
+
+code {
+  font-family: var(--font-mono); font-size: .87em; font-weight: 500;
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: 4px; padding: 1px 5px; color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- toc ---------- */
+.toc { margin-block: 38px 0; border-top: 1px solid var(--line); padding-top: 18px; }
+.toc-label {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint);
+  display: block; margin-bottom: 12px;
+}
+.toc-list {
+  list-style: none; margin: 0; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(184px, 1fr));
+  gap: 1px 18px;
+}
+.toc-list a {
+  display: flex; gap: 9px; align-items: baseline;
+  padding: 5px 0; text-decoration: none; color: var(--ink-soft);
+  font-size: 13.5px; line-height: 1.45; transition: color .13s;
+}
+.toc-list a:hover { color: var(--accent); }
+.toc-list a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toc-list .n {
+  font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint);
+  flex: none; font-variant-numeric: tabular-nums; padding-top: 1px;
+}
+
+/* ---------- part ---------- */
+.part-head { padding-block: 76px 0; scroll-margin-top: 72px; }
+.part-head .part-kicker {
+  display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; color: var(--accent); margin-bottom: 8px;
+}
+.part-head h2 {
+  font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.2;
+  margin: 0 0 12px; text-wrap: balance;
+}
+.part-head p {
+  margin: 0; font-size: 15px; line-height: 1.68; color: var(--ink-soft); max-width: 62ch;
+}
+.part-head::after {
+  content: ""; display: block; margin-top: 26px; height: 2px;
+  background: linear-gradient(90deg, var(--accent) 0 56px, var(--line) 56px 100%);
+}
+.toc-part {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; color: var(--accent); margin: 0 0 10px;
+}
+.toc-list + .toc-part { margin-top: 22px; }
+
+/* ---------- chapter ---------- */
+.ch { padding-block: 56px 0; scroll-margin-top: 72px; }
+.ch-head { margin-bottom: 20px; }
+.ch-num {
+  display: block; font-family: var(--font-mono); font-size: 11px; font-weight: 600;
+  letter-spacing: .1em; color: var(--accent); margin-bottom: 8px;
+}
+.ch h2 {
+  font-size: 24px; font-weight: 700; letter-spacing: -.017em;
+  line-height: 1.26; margin: 0; text-wrap: balance;
+}
+.ch p { margin: 0 0 15px; }
+.ch p:last-child { margin-bottom: 0; }
+.ch h3 { font-size: 15.5px; font-weight: 700; letter-spacing: -.005em; margin: 28px 0 10px; }
+.ch h4 {
+  font-size: 14.5px; font-weight: 600; color: var(--ink-soft);
+  letter-spacing: -.003em; margin: 22px 0 9px;
+}
+.ch ul, .ch ol { margin: 0 0 15px; padding-left: 20px; }
+.ch li { margin-bottom: 7px; }
+.ch li:last-child { margin-bottom: 0; }
+.ch b { font-weight: 700; }
+
+blockquote {
+  margin: 18px 0; padding: 13px 18px;
+  border-left: 3px solid var(--line-strong);
+  background: var(--surface);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--ink-soft); font-size: 14.5px; line-height: 1.68;
+}
+blockquote p { margin: 0 0 10px; }
+blockquote p:last-child { margin-bottom: 0; }
+
+.note-box {
+  margin: 18px 0; padding: 14px 17px;
+  border: 1px solid var(--accent-line); border-left-width: 3px;
+  background: var(--accent-wash); border-radius: var(--radius);
+  font-size: 14.5px; line-height: 1.68;
+}
+.note-box p { margin: 0 0 9px; }
+.note-box p:last-child { margin-bottom: 0; }
+.note-box .tag {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .09em; text-transform: uppercase; color: var(--accent);
+  display: block; margin-bottom: 6px;
+}
+
+.src {
+  font-family: var(--font-mono); font-size: 11.5px;
+  color: var(--ink-faint); margin: 8px 0 0;
+}
+
+/* ---------- math ---------- */
+.fx { font-family: var(--font-math); font-size: 1.16em; line-height: 1.5; }
+.fx i, .v { font-style: italic; }
+.math {
+  display: block; text-align: center;
+  font-family: var(--font-math); font-size: 1.2em; line-height: 1.6;
+  margin: 20px 0; padding: 14px 10px;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius); overflow-x: auto;
+}
+.math .v { font-style: italic; }
+.frac {
+  display: inline-flex; flex-direction: column; vertical-align: middle;
+  text-align: center; margin: 0 .22em; font-size: .93em; line-height: 1.3;
+}
+.frac > .n { border-bottom: 1px solid currentColor; padding: 0 .34em .07em; }
+.frac > .d { padding: .07em .34em 0; }
+.op { font-style: normal; }
+
+pre {
+  font-family: var(--font-mono); font-size: 12.5px; line-height: 1.62;
+  background: var(--surface-2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 13px 15px; margin: 16px 0;
+  overflow-x: auto;
+}
+pre .c { color: var(--ink-faint); }
+
+/* ---------- table ---------- */
+.tbl-scroll { overflow-x: auto; margin: 18px 0; }
+table { border-collapse: collapse; width: 100%; min-width: 440px; font-size: 13.5px; }
+th, td {
+  text-align: left; padding: 8px 16px 8px 0;
+  border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.58;
+}
+th {
+  font-family: var(--font-mono); font-size: 10.5px; font-weight: 600;
+  letter-spacing: .05em; text-transform: uppercase; color: var(--ink-faint); white-space: nowrap;
+}
+tr:last-child td { border-bottom: none; }
+td.mono, th.mono { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* ---------- self test ---------- */
+.selftest {
+  display: grid; grid-template-columns: 21px 1fr; gap: 13px;
+  margin-top: 28px; padding: 15px 16px;
+  border: 1px solid var(--line); border-left: 3px solid var(--line-strong);
+  border-radius: var(--radius); background: var(--surface);
+  cursor: pointer; transition: border-color .14s, background .14s;
+}
+.selftest:hover { border-color: var(--line-strong); border-left-color: var(--accent); }
+.selftest.is-done { border-left-color: var(--accent); background: var(--accent-wash); }
+.selftest.is-done .st-q { color: var(--ink-faint); }
+.selftest.is-done .st-a { color: var(--ink-faint); }
+.st-label {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .1em; text-transform: uppercase; color: var(--accent);
+  display: block; margin-bottom: 5px;
+}
+.st-q { font-size: 15px; font-weight: 600; line-height: 1.55; margin: 0; }
+.st-a { font-size: 13.5px; color: var(--ink-soft); margin: 6px 0 0; line-height: 1.64; }
+
+/* ---------- checkbox ---------- */
+.cb {
+  appearance: none; -webkit-appearance: none;
+  width: 19px; height: 19px; margin: 2px 0 0;
+  border: 1.5px solid var(--line-strong); border-radius: 5px;
+  background: var(--surface); cursor: pointer;
+  display: grid; place-content: center; transition: background .14s, border-color .14s;
+}
+.cb::after {
+  content: ""; width: 10px; height: 5.5px;
+  border-left: 2px solid var(--on-accent); border-bottom: 2px solid var(--on-accent);
+  transform: rotate(-45deg) scale(0); transition: transform .14s; margin-top: -3px;
+}
+.cb:checked { background: var(--accent); border-color: var(--accent); }
+.cb:checked::after { transform: rotate(-45deg) scale(1); }
+.cb:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .cb, .cb::after, .selftest { transition: none; } }
+
+/* ---------- diagram ---------- */
+.fig { margin: 26px 0; }
+.fig-scroll {
+  overflow-x: auto; border: 1px solid var(--line);
+  border-radius: var(--radius); background: var(--surface); padding: 16px 14px;
+}
+.diagram { display: block; width: 100%; min-width: 620px; height: auto; }
+.diagram text { font-family: var(--font-mono); fill: var(--ink); }
+.diagram .box { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .store { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .flow { stroke: var(--ink-faint); stroke-width: 1.25; fill: none; }
+.diagram .t { font-size: 11.5px; font-weight: 600; }
+.diagram .s { font-size: 10px; fill: var(--ink-soft); }
+.diagram .band { font-size: 10px; font-weight: 500; fill: var(--ink-soft); letter-spacing: .07em; }
+.diagram .al { font-size: 10px; fill: var(--ink-soft); }
+.diagram .sheet     { fill: var(--surface);   stroke: var(--line-strong); stroke-width: 1; }
+.diagram .sheet-dim { fill: var(--surface-2); stroke: var(--line);        stroke-width: 1; }
+.diagram .cell      { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .cell-hi   { fill: var(--accent-wash); stroke: var(--accent);    stroke-width: 1.5; }
+.diagram .lead      { stroke: var(--accent); stroke-width: 1; fill: none; opacity: .5; }
+.diagram .zoom-out  { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .zoom-in   { fill: var(--accent-wash); stroke: var(--accent-line); stroke-width: 1; }
+.diagram .octa      { fill: none; stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; }
+.diagram.narrow     { min-width: 0; max-width: 340px; margin-inline: auto; }
+.diagram.sm         { min-width: 0; max-width: 240px; margin-inline: auto; }
+.diagram.md         { min-width: 0; max-width: 400px; margin-inline: auto; }
+.diagram.lg         { min-width: 0; max-width: 580px; margin-inline: auto; }
+.diagram .pt        { fill: var(--ink); }
+.diagram .pt-dim    { fill: var(--ink); opacity: .3; }
+.diagram .disc      { fill: none; stroke: var(--line-strong); stroke-width: 1; }
+.diagram .band-ln   { stroke: var(--accent); stroke-width: 1; opacity: .5; }
+.diagram .band-fill { fill: var(--accent); opacity: .1; }
+.diagram .wall      { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .probe     { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .ray       { stroke: var(--ink-faint); stroke-width: 1; }
+.diagram .move      { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.diagram .ghost     { fill: none; stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 3 3; }
+.diagram .ah        { fill: var(--accent); }
+.diagram .ahf       { fill: var(--ink-faint); }
+.diagram .lamp      { fill: var(--accent); }
+.diagram .dot       { fill: var(--accent); }
+.diagram .dot-n     { fill: var(--ink-soft); }
+.diagram .ray-d     { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.diagram .ray-i     { stroke: var(--ink-soft); stroke-width: 1.4; fill: none; }
+.diagram .ray-x     { stroke: var(--ink-faint); stroke-width: 1.2; fill: none; stroke-dasharray: 4 4; }
+.diagram .ray-f     { stroke: var(--line-strong); stroke-width: 1; fill: none; }
+.diagram .curve     { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+.diagram .ahA       { fill: var(--accent); }
+.diagram .ahN       { fill: var(--ink-soft); }
+.diagram .ahF       { fill: var(--ink-faint); }
+figcaption { margin-top: 11px; font-size: 13.5px; color: var(--ink-soft); }
+
+.doc-img {
+  display: block; width: 100%; height: auto;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: #FFFFFF;
+}
+.fig-scroll .doc-img { min-width: 560px; }
+.doc-img.fit { width: auto; max-width: 100%; margin-inline: auto; }
+.pair {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 22px 0;
+}
+.pair figure { margin: 0; }
+.pair .doc-img { min-width: 0; }
+.pair figcaption { margin-top: 8px; font-size: 12.5px; line-height: 1.55; }
+@media (max-width: 560px) { .pair { grid-template-columns: 1fr; } }
+.lightbox-hint { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-top: 6px; }
+
+/* ---------- toolbar ---------- */
+.tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+  margin-block: 34px 0; padding-block: 0 16px; border-bottom: 1px solid var(--line);
+}
+.btn {
+  font-family: var(--font-mono); font-size: 11.5px; font-weight: 500;
+  color: var(--ink-soft); background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: 6px;
+  padding: 7px 13px; cursor: pointer;
+  transition: color .15s, border-color .15s, background .15s;
+}
+.btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+.btn[aria-pressed="true"] { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.btn[data-armed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-wash); }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { font-family: var(--font-mono); font-size: 11px; color: var(--ink-faint); margin-left: auto; }
+
+/* ---------- pitfalls ---------- */
+.pitfalls { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.pitfalls li {
+  display: grid; grid-template-columns: 22px 1fr; gap: 12px;
+  padding: 13px 0; font-size: 14.5px; color: var(--ink-soft); line-height: 1.66;
+  border-bottom: 1px solid var(--line); margin: 0;
+}
+.pitfalls li:last-child { border-bottom: none; }
+.pitfalls li::before {
+  content: "—"; font-family: var(--font-mono); font-size: 12px; color: var(--ink-faint);
+}
+.pitfalls b { color: var(--ink); font-weight: 600; }
+
+footer {
+  margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--line);
+  font-family: var(--font-mono); font-size: 11px; line-height: 1.85; color: var(--ink-faint);
+}
+
+.sr {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+[hidden] { display: none !important; }
+
+@media (max-width: 520px) {
+  .wrap { padding-inline: 16px; }
+  .hero { padding-block: 38px 0; }
+  body { font-size: 15px; line-height: 1.72; }
+  .ch h2 { font-size: 21px; }
+  .math { font-size: 1.06em; padding-inline: 4px; }
+  .selftest { padding-inline: 13px; }
+}
+
+/* ---------- 拓展页新增 ---------- */
+.back { margin: 18px 0 0; font-family: var(--font-mono); font-size: 12px; }
+.back a { color: var(--accent); text-decoration: none; }
+.back a:hover { text-decoration: underline; }
+.back a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.diagram .seg1 { fill: var(--accent); }
+.diagram .seg2 { fill: var(--accent); opacity: .45; }
+.diagram .seg3 { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .seg4 { fill: var(--ink-faint); opacity: .3; }
+.diagram .v-low  { fill: var(--line-strong); }
+.diagram .v-high { fill: var(--accent); }
+.diagram .res      { fill: var(--accent-wash); stroke: var(--accent); stroke-width: 1.5; }
+.diagram .res-dim  { fill: none; stroke: var(--ink-faint); stroke-width: 1; stroke-dasharray: 3 3; }
+.diagram .pool     { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 1; }
+.diagram .cand     { fill: var(--ink-soft); opacity: .55; }
+.diagram .cand-hot { fill: var(--accent); }
+
+/* ---------- 侧边章节索引 ---------- */
+.side { display: none; }
+
+@media (min-width: 1240px) {
+  .side {
+    display: block;
+    position: fixed;
+    top: 66px;
+    left: calc((100vw - 740px) / 2 - 234px);
+    width: 214px;
+    max-height: calc(100vh - 92px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding-block: 2px 24px;
+  }
+  nav.toc { display: none; }
+}
+
+.side-part {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .015em; color: var(--accent);
+  margin: 0 0 6px; padding-inline-start: 9px; line-height: 1.4;
+}
+.side ul { list-style: none; margin: 0 0 18px; padding: 0; }
+.side ul:last-child { margin-bottom: 0; }
+.side li { margin: 0; }
+.side a {
+  display: flex; gap: 7px; align-items: baseline;
+  padding: 3.5px 9px; border-radius: 5px;
+  text-decoration: none; color: var(--ink-soft);
+  font-size: 12.5px; line-height: 1.42;
+  transition: color .13s, background .13s;
+}
+.side a:hover { color: var(--ink); background: var(--surface); }
+.side a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.side a .sn {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  flex: none; font-variant-numeric: tabular-nums; padding-top: 1px;
+}
+.side a.is-cur { color: var(--ink); background: var(--accent-wash); font-weight: 600; }
+.side a.is-cur .sn { color: var(--accent); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .side a { transition: none; } }
+</style>
+
+<div class="bar">
+  <div class="wrap bar-inner">
+    <div class="bar-top">
+      <span class="bar-title">ReSTIR 与 DDGI Resampling<span class="sep"> · </span><span class="cur" id="curCh">尚未开始</span></span>
+      <span class="bar-count"><b id="doneCount">0</b> / <span id="totalCount">0</span> · <span id="pct">0%</span></span>
+    </div>
+    <div class="track" id="pbar" role="progressbar" aria-labelledby="pbar-label"
+         aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+      <div class="fill" id="fill"></div>
+    </div>
+    <span class="sr" id="pbar-label">学习进度</span>
+  </div>
+</div>
+
+<nav class="side" id="side" aria-label="章节索引">
+  <p class="side-part">第一部分 · 重采样的原理</p>
+  <ul>
+    <li><a href="#ch-0"><span class="sn">00</span><span>一道光线的预算</span></a></li>
+    <li><a href="#ch-1"><span class="sn">01</span><span>加权蓄水池采样</span></a></li>
+    <li><a href="#ch-2"><span class="sn">02</span><span>重采样重要性采样</span></a></li>
+    <li><a href="#ch-3"><span class="sn">03</span><span>把可见性排除在外</span></a></li>
+    <li><a href="#ch-4"><span class="sn">04</span><span>时空复用</span></a></li>
+    <li><a href="#ch-5"><span class="sn">05</span><span>复用的代价</span></a></li>
+  </ul>
+  <p class="side-part">第二部分 · 应用：DDGI Resampling</p>
+  <ul>
+    <li><a href="#ch-6"><span class="sn">06</span><span>探针为何能当作光源</span></a></li>
+    <li><a href="#ch-7"><span class="sn">07</span><span>推迟一跳</span></a></li>
+    <li><a href="#ch-8"><span class="sn">08</span><span>统一采样</span></a></li>
+    <li><a href="#ch-9"><span class="sn">09</span><span>增广探针</span></a></li>
+    <li><a href="#ch-10"><span class="sn">10</span><span>三处工程修正</span></a></li>
+    <li><a href="#ch-11"><span class="sn">11</span><span>结果</span></a></li>
+    <li><a href="#ch-12"><span class="sn">12</span><span>局限与后续</span></a></li>
+    <li><a href="#ch-13"><span class="sn">13</span><span>概念对照与常见误区</span></a></li>
+  </ul>
+</nav>
+
+<div class="wrap main">
+
+  <header class="hero">
+    <p class="eyebrow">DDGI 原理讲义 · 拓展篇</p>
+    <h1>ReSTIR 与 DDGI Resampling</h1>
+    <p class="lead">
+      从「一道光线该追给哪个光源」这个问题出发，推导重采样的完整机制。
+      再说明 DDGI Resampling 如何把探针变成一个覆盖全场景的光源。
+      前置内容为 DDGI 讲义的第 03–09 章。
+    </p>
+    <p class="back"><a href="index.html">← 返回 DDGI 原理讲义</a></p>
+  </header>
+
+  <nav class="toc">
+    <span class="toc-label">目录</span>
+    <p class="toc-part">第一部分 · 重采样的原理</p>
+    <ul class="toc-list">
+      <li><a href="#ch-0"><span class="n">00</span><span>一道光线的预算</span></a></li>
+      <li><a href="#ch-1"><span class="n">01</span><span>加权蓄水池采样</span></a></li>
+      <li><a href="#ch-2"><span class="n">02</span><span>重采样重要性采样</span></a></li>
+      <li><a href="#ch-3"><span class="n">03</span><span>把可见性排除在外</span></a></li>
+      <li><a href="#ch-4"><span class="n">04</span><span>时空复用</span></a></li>
+      <li><a href="#ch-5"><span class="n">05</span><span>复用的代价</span></a></li>
+    </ul>
+    <p class="toc-part">第二部分 · 应用：DDGI Resampling</p>
+    <ul class="toc-list">
+      <li><a href="#ch-6"><span class="n">06</span><span>探针为何能当作光源</span></a></li>
+      <li><a href="#ch-7"><span class="n">07</span><span>推迟一跳</span></a></li>
+      <li><a href="#ch-8"><span class="n">08</span><span>统一采样</span></a></li>
+      <li><a href="#ch-9"><span class="n">09</span><span>增广探针</span></a></li>
+      <li><a href="#ch-10"><span class="n">10</span><span>三处工程修正</span></a></li>
+      <li><a href="#ch-11"><span class="n">11</span><span>结果</span></a></li>
+      <li><a href="#ch-12"><span class="n">12</span><span>局限与后续</span></a></li>
+      <li><a href="#ch-13"><span class="n">13</span><span>概念对照与常见误区</span></a></li>
+    </ul>
+  </nav>
+
+  <div class="tools">
+    <button class="btn" id="filterBtn" type="button" aria-pressed="false">只看未完成</button>
+    <button class="btn" id="resetBtn" type="button">重置进度</button>
+    <span class="hint" id="hint"></span>
+  </div>
+
+  <!-- ==================== 第一部分 · 重采样的原理 ==================== -->
+  <header class="part-head" id="part-1">
+    <span class="part-kicker">第一部分</span>
+    <h2>重采样的原理</h2>
+    <p>
+      这一部分只回答一个问题：每帧只有一条光线，应该追给哪一个候选。
+      全部结论只依赖两个工具 —— 加权蓄水池采样与重采样重要性采样。
+      两者都不涉及 GPU，也不依赖具体的全局光照方案。
+    </p>
+  </header>
+
+  <!-- ================= 00 ================= -->
+  <section class="ch" id="ch-0" data-chapter="00 · 一道光线的预算">
+    <div class="ch-head">
+      <span class="ch-num">第 00 章</span>
+      <h2>一道光线的预算</h2>
+    </div>
+
+    <p>
+      DDGI 讲义解决的是间接光。本讲义解决采样本身，先从直接光说起。
+    </p>
+
+    <p>
+      着色点 <span class="fx v">P</span> 接收到的直接光，等于场景中每个光源对它的贡献之和。
+      每个光源的贡献需要一条阴影光线才能确定，因为只有追过去才知道中间有没有被挡住。
+    </p>
+
+    <p>
+      实时渲染的预算大约是一帧一条光线。所以实际能做的只有一件事：
+      <b>从全部光源中挑出一个，追一条光线。</b>
+    </p>
+
+    <p>
+      问题出在挑选上。一个场景可能有几百个光源，而某个具体的像素通常只受其中少数几个影响。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 332" role="img" aria-label="上：着色点 P 周围散布着许多光源，其中只有两个对 P 有贡献。下：两种做法的逐帧估计值对比。均匀随机挑选时，大多数帧的估计值为零，偶尔出现一个远高于真值的尖峰。理想做法下每帧都接近真值。">
+<defs><marker id="ahL0" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="box" x="40" y="24" width="540" height="132" rx="2"/>
+<circle class="dot-n" cx="170" cy="60" r="4"/><circle class="dot-n" cx="205" cy="105" r="4"/>
+<circle class="dot-n" cx="240" cy="50" r="4"/><circle class="dot-n" cx="270" cy="130" r="4"/>
+<circle class="dot-n" cx="355" cy="120" r="4"/><circle class="dot-n" cx="390" cy="70" r="4"/>
+<circle class="dot-n" cx="420" cy="140" r="4"/><circle class="dot-n" cx="445" cy="55" r="4"/>
+<circle class="dot-n" cx="500" cy="42" r="4"/><circle class="dot-n" cx="525" cy="125" r="4"/>
+<circle class="dot-n" cx="550" cy="80" r="4"/><circle class="dot-n" cx="568" cy="140" r="4"/>
+<circle class="dot-n" cx="568" cy="30" r="4"/><circle class="dot-n" cx="300" cy="88" r="4"/>
+<circle class="lamp" cx="330" cy="45" r="6"/><circle class="lamp" cx="470" cy="108" r="6"/>
+<path class="ray-d" d="M74,116 L326,47" marker-end="url(#ahL0)"/>
+<path class="ray-d" d="M74,116 L466,106" marker-end="url(#ahL0)"/>
+<circle class="dot" cx="70" cy="116" r="5"/>
+<text class="t" x="56" y="98">P</text>
+<text class="al" x="46" y="150">着色点 P 只收到其中 2 个光源的光</text>
+
+<path class="ray-f" d="M48,296 H560"/>
+<path class="ray-x" d="M48,270 H560"/>
+<rect class="v-low" x="56" y="294" width="12" height="2"/>
+<rect class="v-low" x="74" y="294" width="12" height="2"/>
+<rect class="v-low" x="92" y="294" width="12" height="2"/>
+<rect class="v-low" x="110" y="294" width="12" height="2"/>
+<rect class="v-high" x="128" y="220" width="12" height="76"/>
+<rect class="v-low" x="146" y="294" width="12" height="2"/>
+<rect class="v-low" x="164" y="294" width="12" height="2"/>
+<rect class="v-low" x="182" y="294" width="12" height="2"/>
+<rect class="v-low" x="200" y="294" width="12" height="2"/>
+<rect class="v-high" x="218" y="270" width="12" height="26"/>
+<rect class="v-low" x="236" y="294" width="12" height="2"/>
+<rect class="v-low" x="254" y="294" width="12" height="2"/>
+<text class="s" x="56" y="316">均匀随机挑一个</text>
+<rect class="seg2" x="336" y="274" width="12" height="22"/>
+<rect class="seg2" x="354" y="271" width="12" height="25"/>
+<rect class="seg2" x="372" y="273" width="12" height="23"/>
+<rect class="seg2" x="390" y="270" width="12" height="26"/>
+<rect class="seg2" x="408" y="272" width="12" height="24"/>
+<rect class="seg2" x="426" y="274" width="12" height="22"/>
+<rect class="seg2" x="444" y="271" width="12" height="25"/>
+<rect class="seg2" x="462" y="273" width="12" height="23"/>
+<rect class="seg2" x="480" y="272" width="12" height="24"/>
+<rect class="seg2" x="498" y="270" width="12" height="26"/>
+<rect class="seg2" x="516" y="273" width="12" height="23"/>
+<rect class="seg2" x="534" y="272" width="12" height="24"/>
+<text class="s" x="336" y="316">理想做法</text>
+<text class="s" x="420" y="256">真值</text>
+<text class="s" x="286" y="316">帧 →</text>
+<text class="al" x="48" y="204">逐帧的估计值</text>
+</svg>
+      </div>
+      <figcaption>
+        上：<span class="fx v">P</span> 周围有几百个光源，其中只有两个真正照到它。
+        下：两种做法的逐帧估计值。均匀随机挑选时，绝大多数帧挑到的是无关光源，
+        这一帧的估计值为 0。偶尔挑中一次，因为要除以 1/500 的选中概率，
+        这一帧的估计值又远高于真值。平均值正确，但单帧误差极大。
+      </figcaption>
+    </figure>
+
+    <p>
+      问题的形式不是"把每个光源都算一遍需要太多光线"，
+      而是<b>在大量候选中挑一个</b>。候选的评估开销很低，开销高的是确认可见性那一步。
+    </p>
+
+    <p>
+      因此有两件事要解决。第一，怎样让挑选倾向于有贡献的候选。
+      第二，怎样在挑选变了的情况下仍然保持估计无偏。接下来三章回答这两个问题。
+    </p>
+
+    <div class="selftest" data-id="rs-0">
+      <input type="checkbox" class="cb" id="cb-rs-0">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明为什么"无偏"不等于"可用"，以及问题的形状为什么是"挑一个"而非"全算一遍"。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 01 ================= -->
+  <section class="ch" id="ch-1" data-chapter="01 · 加权蓄水池采样">
+    <div class="ch-head">
+      <span class="ch-num">第 01 章</span>
+      <h2>加权蓄水池采样</h2>
+    </div>
+
+    <p>先把挑选这一步抽象出来。</p>
+
+    <p>
+      有一串样本 <span class="fx v">x</span><sub>1</sub> …
+      <span class="fx v">x</span><sub><span class="fx v">M</span></sub>，
+      每个带一个权重 <span class="fx v">w</span>。
+      要求挑出其中一个，使得挑中
+      <span class="fx v">x</span><sub><span class="fx v">i</span></sub>
+      的概率等于 <span class="fx v">w</span><sub><span class="fx v">i</span></sub>
+      除以全部权重之和。
+    </p>
+
+    <p>
+      朴素做法是把样本全部存下来，再按权重抽一次。
+      但 GPU 上每个像素想独立完成这件事，存不下这么多样本。
+    </p>
+
+    <p>
+      加权蓄水池采样（weighted reservoir sampling，WRS）用一遍扫描解决该问题。
+      它只维护两个量：当前选中的样本，以及权重的累计和。
+    </p>
+
+<pre>
+W = 0
+for i = 1 … M:
+    W ← W + w_i
+    if rand() &lt; w_i / W:
+        y ← x_i
+</pre>
+
+    <p>
+      每一步的判断是：新样本替换掉当前样本的概率为
+      <span class="fx v">w</span><sub><span class="fx v">i</span></sub> /
+      <span class="fx v">W</span>。
+      该概率恰好使最终分布正比于权重。
+    </p>
+
+    <p>归纳可以验证这一点：</p>
+
+    <ul>
+      <li>
+        处理到第 <span class="fx v">i</span> 个样本后，旧样本
+        <span class="fx v">x</span><sub><span class="fx v">j</span></sub>
+        被选中的概率是
+        <span class="fx v">w</span><sub><span class="fx v">j</span></sub> /
+        <span class="fx v">W</span><sub><span class="fx v">i</span></sub>。
+      </li>
+      <li>
+        下一个样本到来时，每个旧样本保持位置的概率是 1 −
+        <span class="fx v">w</span><sub><span class="fx v">i</span>+1</sub> /
+        <span class="fx v">W</span><sub><span class="fx v">i</span>+1</sub>
+        = <span class="fx v">W</span><sub><span class="fx v">i</span></sub> /
+        <span class="fx v">W</span><sub><span class="fx v">i</span>+1</sub>。
+      </li>
+      <li>
+        两者相乘，旧样本的概率变成
+        <span class="fx v">w</span><sub><span class="fx v">j</span></sub> /
+        <span class="fx v">W</span><sub><span class="fx v">i</span>+1</sub>。
+        新样本自己的概率是
+        <span class="fx v">w</span><sub><span class="fx v">i</span>+1</sub> /
+        <span class="fx v">W</span><sub><span class="fx v">i</span>+1</sub>。
+        归纳成立。
+      </li>
+    </ul>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 250" role="img" aria-label="加权蓄水池采样的一次运行。五个候选依次进入，权重分别为 3、1、6、2、4。累计权重逐次累加，第三个和第五个候选成功抢占了蓄水池。">
+<defs><marker id="ahW1" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<text class="al" x="16" y="42">候选</text>
+<text class="al" x="16" y="80">权重</text>
+<text class="al" x="16" y="118">累计 W</text>
+<text class="al" x="16" y="156">替换概率</text>
+<text class="al" x="16" y="212">蓄水池</text>
+<path class="ray-f" d="M16,168 H560"/>
+<path class="ray-f" d="M16,228 H560"/>
+<circle class="cand" cx="88" cy="38" r="6"/><circle class="cand" cx="196" cy="38" r="6"/>
+<circle class="cand-hot" cx="304" cy="38" r="6"/><circle class="cand" cx="412" cy="38" r="6"/>
+<circle class="cand-hot" cx="520" cy="38" r="6"/>
+<text class="s" x="82" y="24">x₁</text><text class="s" x="190" y="24">x₂</text>
+<text class="s" x="298" y="24">x₃</text><text class="s" x="406" y="24">x₄</text>
+<text class="s" x="514" y="24">x₅</text>
+<text class="s" x="84" y="80">3</text><text class="s" x="192" y="80">1</text>
+<text class="s" x="300" y="80">6</text><text class="s" x="408" y="80">2</text>
+<text class="s" x="516" y="80">4</text>
+<text class="s" x="84" y="118">3</text><text class="s" x="192" y="118">4</text>
+<text class="s" x="300" y="118">10</text><text class="s" x="408" y="118">12</text>
+<text class="s" x="516" y="118">16</text>
+<text class="s" x="84" y="156">—</text><text class="s" x="190" y="156">1/4</text>
+<text class="s" x="296" y="156">6/10</text><text class="s" x="404" y="156">2/12</text>
+<text class="s" x="512" y="156">4/16</text>
+<rect class="res" x="62" y="180" width="52" height="34" rx="5"/>
+<text class="s" x="88" y="202" text-anchor="middle">x₁</text>
+<rect class="res" x="170" y="180" width="52" height="34" rx="5"/>
+<text class="s" x="196" y="202" text-anchor="middle">x₁</text>
+<rect class="res" x="278" y="180" width="52" height="34" rx="5"/>
+<text class="s" x="304" y="202" text-anchor="middle">x₃</text>
+<rect class="res" x="386" y="180" width="52" height="34" rx="5"/>
+<text class="s" x="412" y="202" text-anchor="middle">x₃</text>
+<rect class="res" x="494" y="180" width="52" height="34" rx="5"/>
+<text class="s" x="520" y="202" text-anchor="middle">x₅</text>
+<text class="al" x="266" y="246">候选逐个进入，蓄水池随时可能被替换</text>
+</svg>
+      </div>
+      <figcaption>
+        一次运行示例。候选按顺序进入，累计权重
+        <span class="fx v">W</span> 逐次变大，因此替换概率被不断稀释。
+        第三个候选 <span class="fx v">x</span><sub>3</sub> 权重最高，替换成功。
+        第五个候选 <span class="fx v">x</span><sub>5</sub> 也发生了替换。
+        该算法的内存占用与候选总数无关。
+      </figcaption>
+    </figure>
+
+    <p>
+      该算法的输出分布正比于权重。第 02 章要用到这条性质。
+    </p>
+
+    <p class="src">
+      来源：算法来自 Vitter 1985；ReSTIR 的写法见 Bitterli 等 2020，Algorithm 2
+    </p>
+
+    <div class="selftest" data-id="rs-1">
+      <input type="checkbox" class="cb" id="cb-rs-1">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能写出加权蓄水池采样的循环，并说明为什么它的输出分布正比于权重。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 02 ================= -->
+  <section class="ch" id="ch-2" data-chapter="02 · 重采样重要性采样">
+    <div class="ch-head">
+      <span class="ch-num">第 02 章</span>
+      <h2>重采样重要性采样</h2>
+    </div>
+
+    <p>
+      现在把第 01 章的算法用于估计。要估计的目标是
+      <span class="fx v">I</span> = ∫<span class="fx v">f</span>(<span class="fx v">x</span>)d<span class="fx v">x</span>，
+      其中 <span class="fx v">x</span> 取遍光源表面。
+    </p>
+
+    <p>
+      普通的蒙特卡洛做法是按某个容易采样的分布
+      <span class="fx v">p</span> 采一个
+      <span class="fx v">x</span>，用
+      <span class="fx v">f</span>(<span class="fx v">x</span>)/<span class="fx v">p</span>(<span class="fx v">x</span>)
+      作为估计值。
+    </p>
+
+    <p>
+      问题在于，如果按 ∝ <span class="fx v">f</span> 的分布采样，方差会小得多。
+      但那个分布通常没法直接用，原因下一章说明。
+    </p>
+
+    <p>
+      重采样重要性采样（resampled importance sampling，RIS）用两步绕开这个限制。
+      它来自 Talbot 等人 2005 年的工作。
+    </p>
+
+    <ol>
+      <li>按 <span class="fx v">p</span> 采出 <span class="fx v">M</span> 个候选。</li>
+      <li>
+        为每个候选算一个权重
+        <span class="fx v">w</span><sub><span class="fx v">i</span></sub> =
+        <span class="fx v">p̂</span>(<span class="fx v">x</span><sub><span class="fx v">i</span></sub>) /
+        <span class="fx v">p</span>(<span class="fx v">x</span><sub><span class="fx v">i</span></sub>)。
+        其中 <span class="fx v">p̂</span> 称为<b>目标概率密度函数</b>（target PDF），本讲义简称目标函数。
+      </li>
+      <li>用第 01 章的蓄水池按这些权重挑出一个 <span class="fx v">y</span>。</li>
+    </ol>
+
+    <p>
+      因为蓄水池的输出分布正比于权重，而权重正比于
+      <span class="fx v">p̂</span>，所以
+      <b><span class="fx v">y</span> 的分布正比于 <span class="fx v">p̂</span></b>。
+      目标分布由此得到。
+    </p>
+
+    <p>估计量是：</p>
+
+    <div class="math">
+      ⟨<span class="v">I</span>⟩ =
+      <span class="frac">
+        <span class="n"><span class="v">f</span>(<span class="v">y</span>)</span>
+        <span class="d"><span class="v">p̂</span>(<span class="v">y</span>)</span>
+      </span>
+      · <span class="v">W</span>
+      &nbsp;&nbsp;，&nbsp;&nbsp;
+      <span class="v">W</span> =
+      <span class="frac"><span class="n">1</span><span class="d"><span class="v">M</span></span></span>
+      <span class="op">Σ</span><sub><span class="v">i</span></sub>
+      <span class="v">w</span><sub><span class="v">i</span></sub>
+    </div>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 214" role="img" aria-label="重采样重要性采样的数据流：先按分布 p 采出 M 个候选，为每个候选计算权重并送入加权蓄水池，选出一个样本 y，最后用估计量 f(y) 除以 p̂(y) 再乘以 W。">
+<defs><marker id="ahR2" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="pool" x="22" y="52" width="140" height="76" rx="6"/>
+<text class="t" x="40" y="76">候选池</text>
+<text class="s" x="40" y="96">按 p 采 M 个</text>
+<circle class="cand" cx="44" cy="112" r="4"/><circle class="cand" cx="62" cy="112" r="4"/>
+<circle class="cand" cx="80" cy="112" r="4"/><circle class="cand" cx="98" cy="112" r="4"/>
+<circle class="cand-hot" cx="116" cy="112" r="4"/><circle class="cand" cx="134" cy="112" r="4"/>
+<path class="flow" d="M162,90 H204" marker-end="url(#ahR2)"/>
+<text class="s" x="152" y="38">wᵢ = p̂(xᵢ)/p(xᵢ)</text>
+<rect class="res" x="204" y="52" width="160" height="76" rx="6"/>
+<text class="t" x="222" y="80">加权蓄水池</text>
+<text class="s" x="222" y="100">按 wᵢ 挑选</text>
+<text class="s" x="222" y="118">输出分布 ∝ p̂</text>
+<path class="flow" d="M364,90 H406" marker-end="url(#ahR2)"/>
+<rect class="pool" x="406" y="52" width="172" height="76" rx="6"/>
+<text class="t" x="424" y="80">选中的样本 y</text>
+<text class="s" x="424" y="100">⟨I⟩ = f(y)/p̂(y) · W</text>
+<text class="al" x="22" y="166">p̂ 只用来决定"挑谁"。f(y)/p̂(y) 与 W 负责把这个决定换算回无偏的估计值。</text>
+<text class="al" x="22" y="188">两者分工，是 RIS 的全部内容。</text>
+</svg>
+      </div>
+      <figcaption>
+        RIS 的数据流。挑选由目标函数
+        <span class="fx v">p̂</span> 驱动，
+        配权由 <span class="fx v">f</span>(<span class="fx v">y</span>)/<span class="fx v">p̂</span>(<span class="fx v">y</span>)
+        与 <span class="fx v">W</span> 完成。
+      </figcaption>
+    </figure>
+
+    <h3>该估计量是无偏的</h3>
+
+    <p>
+      证明只有一步。固定候选集合，只对"挑选"这一步取期望：
+    </p>
+
+    <div class="math">
+      E[⟨<span class="v">I</span>⟩] =
+      <span class="op">Σ</span><sub><span class="v">i</span></sub>
+      (<span class="v">w</span><sub><span class="v">i</span></sub> /
+      <span class="op">Σ</span><sub><span class="v">j</span></sub><span class="v">w</span><sub><span class="v">j</span></sub>)
+      ·
+      <span class="frac">
+        <span class="n"><span class="v">f</span>(<span class="v">x</span><sub><span class="v">i</span></sub>)</span>
+        <span class="d"><span class="v">p̂</span>(<span class="v">x</span><sub><span class="v">i</span></sub>)</span>
+      </span>
+      · <span class="v">W</span>
+      <br>
+      = <span class="frac"><span class="n">1</span><span class="d"><span class="v">M</span></span></span>
+      <span class="op">Σ</span><sub><span class="v">i</span></sub>
+      <span class="v">w</span><sub><span class="v">i</span></sub> ·
+      <span class="frac">
+        <span class="n"><span class="v">f</span>(<span class="v">x</span><sub><span class="v">i</span></sub>)</span>
+        <span class="d"><span class="v">p̂</span>(<span class="v">x</span><sub><span class="v">i</span></sub>)</span>
+      </span>
+      <br>
+      = <span class="frac"><span class="n">1</span><span class="d"><span class="v">M</span></span></span>
+      <span class="op">Σ</span><sub><span class="v">i</span></sub>
+      <span class="frac">
+        <span class="n"><span class="v">f</span>(<span class="v">x</span><sub><span class="v">i</span></sub>)</span>
+        <span class="d"><span class="v">p</span>(<span class="v">x</span><sub><span class="v">i</span></sub>)</span>
+      </span>
+    </div>
+
+    <p>
+      第一步到第二步之间，<span class="fx">Σ</span><sub>j</sub><span class="fx v">w</span><sub>j</sub>
+      恰好被约掉，这是整个推导的关键。
+      第二步到第三步用到 <span class="fx v">w</span><sub><span class="fx v">i</span></sub> =
+      <span class="fx v">p̂</span>(<span class="fx v">x</span><sub><span class="fx v">i</span></sub>) /
+      <span class="fx v">p</span>(<span class="fx v">x</span><sub><span class="fx v">i</span></sub>)。
+    </p>
+
+    <p>
+      最后的式子就是对同一组候选做普通的蒙特卡洛平均。
+      后者是无偏的，所以 RIS 也是。
+    </p>
+
+    <p class="src">
+      来源：RIS 估计量见 Bitterli 等 2020，方程 (6) 与 Algorithm 1
+    </p>
+
+    <div class="note-box">
+      <span class="tag">这条推导的含义</span>
+      <p>
+        无论 <span class="fx v">p̂</span> 取什么形状，RIS 估计量都是无偏的。
+        <span class="fx v">p̂</span> 只影响方差，不影响正确性。
+      </p>
+      <p>
+        这一点很重要，因为下一章要取的
+        <span class="fx v">p̂</span> 是一个近似量。近似不会让结果变错，只会让噪声变大。
+      </p>
+    </div>
+
+    <p>
+      概括起来，RIS 把"挑哪个样本"和"给这个样本配多少权重"分为两步。
+      挑选由目标函数决定，配权负责保持无偏。
+    </p>
+
+    <div class="selftest" data-id="rs-2">
+      <input type="checkbox" class="cb" id="cb-rs-2">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能写出 RIS 估计量，并说明为什么它对任意目标函数都无偏。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 03 ================= -->
+  <section class="ch" id="ch-3" data-chapter="03 · 把可见性排除在外">
+    <div class="ch-head">
+      <span class="ch-num">第 03 章</span>
+      <h2>把可见性排除在外</h2>
+    </div>
+
+    <p>
+      现在回到第 00 章的直接光问题。
+      要估计的积分项由四个因子组成：
+    </p>
+
+    <div class="math">
+      <span class="v">f</span>(<span class="v">x</span>) =
+      <span class="v">L</span><sub>e</sub>(<span class="v">x</span>) ·
+      <span class="v">G</span>(<span class="v">x</span>) ·
+      <span class="v">ρ</span><span class="op">/</span><span class="v">π</span> ·
+      <span class="v">V</span>(<span class="v">x</span>)
+    </div>
+
+    <ul>
+      <li>
+        <span class="fx v">L</span><sub>e</sub> 是光源自身射出的光量。
+      </li>
+      <li>
+        <span class="fx v">G</span> 是几何项，与距离和两个夹角有关。
+      </li>
+      <li>
+        <span class="fx v">ρ</span>/<span class="fx v">π</span> 是着色点的漫反射率。
+        它与 <span class="fx v">x</span> 无关，是一个常数因子。
+      </li>
+      <li>
+        <span class="fx v">V</span> 是可见性，取值为 0 或 1。
+      </li>
+    </ul>
+
+    <p>
+      这四个因子里，前三个只需要一次着色计算就能求出，不需要光线。
+      只有 <span class="fx v">V</span> 必须追一条阴影光线。
+    </p>
+
+    <p>因此目标函数取"去掉可见性之后的部分"：</p>
+
+    <div class="math">
+      <span class="v">p̂</span>(<span class="v">x</span>) ∝
+      <span class="v">L</span><sub>e</sub>(<span class="v">x</span>) ·
+      <span class="v">G</span>(<span class="v">x</span>) ·
+      <span class="v">ρ</span><span class="op">/</span><span class="v">π</span>
+    </div>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 268" role="img" aria-label="积分项 f 由四个因子相乘构成。前三个因子 L_e、G、ρ/π 不需要光线，目标函数 p̂ 取它们的乘积。第四个因子 V 是唯一需要光线的项。估计量因此退化为 V(y) 乘以 W。">
+<defs><marker id="ahF3" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<text class="s" x="24" y="90">f(x) =</text>
+<rect class="cell" x="92" y="62" width="88" height="48" rx="5"/>
+<text class="t" x="136" y="92" text-anchor="middle">L<tspan baseline-shift="sub" font-size="9">e</tspan></text>
+<text class="s" x="180" y="92">×</text>
+<rect class="cell" x="194" y="62" width="88" height="48" rx="5"/>
+<text class="t" x="238" y="92" text-anchor="middle">G</text>
+<text class="s" x="282" y="92">×</text>
+<rect class="cell" x="296" y="62" width="88" height="48" rx="5"/>
+<text class="t" x="340" y="92" text-anchor="middle">ρ/π</text>
+<text class="s" x="384" y="92">×</text>
+<rect class="cell-hi" x="398" y="62" width="88" height="48" rx="5"/>
+<text class="t" x="442" y="92" text-anchor="middle">V</text>
+<path class="ray-f" d="M92,124 H384"/>
+<path class="ray-f" d="M238,124 V138" marker-end="url(#ahF3)"/>
+<text class="s" x="238" y="156" text-anchor="middle">p̂ 取这三项的乘积</text>
+<path class="ray-f" d="M442,124 V138" marker-end="url(#ahF3)"/>
+<text class="s" x="442" y="156" text-anchor="middle">只有它需要光线</text>
+<rect class="res" x="60" y="188" width="480" height="58" rx="6"/>
+<text class="t" x="300" y="214" text-anchor="middle">⟨I⟩ = f(y)/p̂(y) · W  =  V(y) · W</text>
+<text class="s" x="300" y="234" text-anchor="middle">V 是 0 或 1，估计量因此只有两种结果</text>
+</svg>
+      </div>
+      <figcaption>
+        积分项的四个因子。目标函数
+        <span class="fx v">p̂</span> 取前三项的乘积。
+        代入第 02 章的估计量之后，
+        <span class="fx v">f</span>(<span class="fx v">y</span>)/<span class="fx v">p̂</span>(<span class="fx v">y</span>)
+        恰好等于 <span class="fx v">V</span>(<span class="fx v">y</span>)，
+        估计量退化为 <span class="fx v">V</span>(<span class="fx v">y</span>) ·
+        <span class="fx v">W</span>。
+      </figcaption>
+    </figure>
+
+    <p>
+      该结果说明，<b>估计量等于「平均未遮挡贡献 × 可见性」</b>。
+    </p>
+
+    <ul>
+      <li>
+        <span class="fx v">W</span> 是
+        <span class="fx v">M</span> 次着色计算的平均值。
+        它<b>完全不需要阴影光线</b>。
+      </li>
+      <li>
+        <span class="fx v">V</span>(<span class="fx v">y</span>) 只需要一次求值，
+        也就是一条阴影光线。
+      </li>
+    </ul>
+
+    <h3>方差从哪里来</h3>
+
+    <p>噪声只有两个来源。</p>
+
+    <ol>
+      <li>
+        <b>那条阴影光线的二元结果。</b>被挡住就取 0，没被挡住就取
+        <span class="fx v">W</span>。
+        这部分无法消除，因为预算就是一条光线。
+      </li>
+      <li>
+        <b><span class="fx v">W</span> 的波动。</b>
+        它随 <span class="fx v">M</span> 增大而减小。
+        而增大 <span class="fx v">M</span> 不需要追任何光线。
+      </li>
+    </ol>
+
+    <p>
+      与第 00 章的做法对比：那时的估计量是"随机挑一个光源，再除以选中概率"。
+      误差同时来自两处：挑错了光源，以及这个光源本身被挡住。
+      现在第一项不再出现。
+    </p>
+
+    <blockquote>
+      <p>
+        普通做法是随机挑一个光源，追一条光线，得到它的贡献。
+        RIS 是<b>按预期贡献挑一个光源，追一条光线确认它是否被挡住</b>。
+        挑选这一步几乎不消耗光线预算。
+      </p>
+    </blockquote>
+
+    <p>
+      ReSTIR 的全称是 <b>R</b>eservoir-based <b>S</b>patio<b>T</b>emporal
+      <b>I</b>mportance <b>R</b>esampling。
+      其中 Reservoir-based 对应第 01 章的蓄水池，Importance Resampling 对应第 02 与第 03 章。
+      SpatioTemporal 是下一章的内容。
+    </p>
+
+    <div class="selftest" data-id="rs-3">
+      <input type="checkbox" class="cb" id="cb-rs-3">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明目标函数为何要避开可见性，以及估计量因此退化成什么形状。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 04 ================= -->
+  <section class="ch" id="ch-4" data-chapter="04 · 时空复用">
+    <div class="ch-head">
+      <span class="ch-num">第 04 章</span>
+      <h2>时空复用</h2>
+    </div>
+
+    <p>
+      到这里，每个像素每帧只用了 <span class="fx v">M</span> 个候选。
+      <span class="fx v">M</span> 不能随意增大，因为生成候选本身有成本。
+      真正增加候选数的是<b>复用</b>。
+    </p>
+
+    <p>
+      一个蓄水池不只存着选中的样本。它同时携带三项信息：
+    </p>
+
+    <ul>
+      <li>选中的样本 <span class="fx v">y</span>。</li>
+      <li>
+        该蓄水池的权重之和。本讲义后文用
+        <span class="fx v">W</span> 表示它的平均值。
+      </li>
+      <li>已经合并进来的候选总数 <span class="fx v">M</span>，可理解为该蓄水池的置信度。</li>
+    </ul>
+
+    <p>合并两个蓄水池的规则如下：</p>
+
+    <ol>
+      <li>
+        权重相加。
+      </li>
+      <li>
+        在两者之间挑一个，挑中的概率正比于各自的
+        <span class="fx v">W</span>。
+      </li>
+      <li>
+        候选数相加。
+      </li>
+    </ol>
+
+    <p>
+      这条规则是第 01 章算法的自然延伸。
+      一个蓄水池记录的是若干个候选的合并结果，因此两个蓄水池可以再合并成一个。
+      论文对这一步的表述是：把每个蓄水池的选中样本当作一个权重为
+      <span class="fx v">w</span><sub>sum</sub> 的新候选，送进一个新蓄水池。
+      这与"对两条输入流直接做一次蓄水池采样"在数学上等价。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">本讲义与原文的记号差异</span>
+      <p>
+        本讲义把平均权重
+        <span class="fx">(1/M)·Σw<sub>i</sub></span> 记作
+        <span class="fx v">W</span>，估计量写作
+        <span class="fx">f(y)/p̂(y) · W</span>。
+      </p>
+      <p>
+        ReSTIR 原文把
+        <span class="fx">W = (1/p̂(y))·(1/M)·Σw<sub>i</sub></span>
+        整体记作 <span class="fx v">W</span>，称为<b>无偏贡献权重</b>
+        （unbiased contribution weight），估计量写作
+        <span class="fx">f(y) · W</span>。
+      </p>
+      <p>
+        两者只差一个 <span class="fx">1/p̂(y)</span> 因子，估计量完全相同。
+        读原文时需区分这个字母的所指。
+      </p>
+    </div>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 300" role="img" aria-label="时空复用：三个空间邻居像素的蓄水池、上一帧的蓄水池、以及本像素本帧的蓄水池，全部合并进一个蓄水池。合并后权重相加，候选数累加，但复用本身不追任何光线。">
+<defs><marker id="ahM4" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="res" x="30" y="18" width="210" height="42" rx="6"/>
+<text class="s" x="48" y="44">空间邻居 1</text>
+<rect class="res" x="30" y="72" width="210" height="42" rx="6"/>
+<text class="s" x="48" y="98">空间邻居 2</text>
+<rect class="res" x="30" y="126" width="210" height="42" rx="6"/>
+<text class="s" x="48" y="152">空间邻居 3</text>
+<rect class="res-dim" x="30" y="180" width="210" height="42" rx="6"/>
+<text class="s" x="48" y="206">上一帧（时间复用）</text>
+<rect class="res" x="30" y="234" width="210" height="42" rx="6"/>
+<text class="s" x="48" y="260">本像素本帧</text>
+<path class="flow" d="M240,39 C320,39 330,124 396,128" marker-end="url(#ahM4)"/>
+<path class="flow" d="M240,93 C320,93 330,132 396,136" marker-end="url(#ahM4)"/>
+<path class="flow" d="M240,147 C320,147 330,144 396,144" marker-end="url(#ahM4)"/>
+<path class="flow" d="M240,201 C320,201 330,156 396,152" marker-end="url(#ahM4)"/>
+<path class="flow" d="M240,255 C320,255 330,164 396,160" marker-end="url(#ahM4)"/>
+<rect class="res" x="396" y="96" width="180" height="88" rx="6"/>
+<text class="t" x="414" y="122">合并后的蓄水池</text>
+<text class="s" x="414" y="144">权重相加</text>
+<text class="s" x="414" y="162">候选数累加</text>
+<text class="s" x="414" y="180">按各自的 W 挑一个</text>
+<text class="al" x="30" y="294">合并发生在挑选之前。复用本身不追任何光线</text>
+</svg>
+      </div>
+      <figcaption>
+        时空复用。三个相邻像素、上一帧、以及本像素自身的蓄水池全部合并。
+        合并后选中的样本仍然只有一个。复用本身不追任何光线。
+      </figcaption>
+    </figure>
+
+    <ul>
+      <li>
+        <b>空间复用</b>：相邻像素的积分与本像素接近，可以直接使用。
+        论文取 5 个邻居，并可以重复多轮。
+      </li>
+      <li>
+        <b>时间复用</b>：用运动矢量把上一帧的蓄水池重投影到本帧，再合并。
+        这一项让有效样本数随帧数增长。
+      </li>
+    </ul>
+
+    <p>
+      复用不需要重新生成候选，也不需要追光线，只转移蓄水池。
+      因此有效候选数可以比原始候选数大出几个数量级。
+      论文对 ReSTIR 的表述是：
+    </p>
+
+    <blockquote>
+      <p>
+        ReSTIR is a recent combination of importance resampling and classic
+        weighted reservoir sampling that permits <b>the reuse of a massive
+        number of samples in constant time</b>.
+      </p>
+      <p class="src">
+        来源：Dynamic Diffuse Global Illumination Resampling, §2
+      </p>
+    </blockquote>
+
+    <p>
+      "常数时间"指合并的代价与候选数无关，因为候选早已被压缩进蓄水池里。
+      代价只与合并的蓄水池个数有关，而这个数目是固定的。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">原始 ReSTIR 的参数</span>
+      <p>
+        以下数值来自 ReSTIR 原文的实现一节，用于给前面的量级一个具体参照。
+      </p>
+      <ul>
+        <li>每个像素每帧生成 <b>M = 32</b> 个初始候选。</li>
+        <li>空间复用取 <b>k = 5</b> 个邻居，重复 <b>n = 2</b> 轮。</li>
+        <li>时间复用把上一帧的候选数截断到本帧的 <b>20 倍</b>以内。</li>
+        <li>
+          每帧最终着色用的样本数：无偏版本 <b>N = 1</b>，有偏版本 <b>N = 4</b>。
+        </li>
+      </ul>
+      <p>
+        这些数字属于原始 ReSTIR。本讲义第二部分讲的 DDGI Resampling
+        是一个独立的实现，参数并不相同。
+      </p>
+      <p class="src">来源：Bitterli 等，Spatiotemporal reservoir resampling, §5</p>
+    </div>
+
+    <div class="selftest" data-id="rs-4">
+      <input type="checkbox" class="cb" id="cb-rs-4">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能列出蓄水池携带的三项信息，并说明合并规则为什么是权重相加。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 05 ================= -->
+  <section class="ch" id="ch-5" data-chapter="05 · 复用的代价">
+    <div class="ch-head">
+      <span class="ch-num">第 05 章</span>
+      <h2>复用的代价</h2>
+    </div>
+
+    <p>
+      复用的前提是"邻居像素的积分与本像素接近"。
+      这个前提严格来说不成立：不同像素有不同的位置和法线，因此有不同的目标函数
+      <span class="fx v">p̂</span>。
+    </p>
+
+    <p>
+      如果直接把邻居的蓄水池用于本像素，引入的就是偏置。
+      该蓄水池是在另一个目标函数下挑选出来的，其样本分布对本像素并不成立。
+    </p>
+
+    <p>
+      ReSTIR 的处理方式是：<b>用本像素的目标函数，在邻居持有的那个样本上重新求值。</b>
+      合并时送入新蓄水池的权重是：
+    </p>
+
+    <div class="math">
+      <span class="v">w</span><sub>合并</sub> =
+      <span class="v">p̂</span><sub>q</sub>(<span class="v">y</span>) ·
+      <span class="v">W</span> ·
+      <span class="v">M</span>
+    </div>
+
+    <p>
+      其中下标 <span class="fx v">q</span> 表示本像素，
+      <span class="fx v">y</span> 是邻居选中的样本，
+      <span class="fx v">W</span> 与 <span class="fx v">M</span> 来自该邻居的蓄水池。
+      论文把这一步称为对样本概率密度函数的<b>重加权</b>（reweighting），
+      并把它归入多重重要性采样的推广形式。
+    </p>
+
+    <p>
+      等价地，这个权重也可以写成两个目标函数的比值
+      <span class="fx v">p̂</span><sub>q</sub>(<span class="fx v">y</span>) /
+      <span class="fx v">p̂</span><sub>q′</sub>(<span class="fx v">y</span>)
+      乘以该邻居的权重和。
+      它修正的是"该样本在邻居处被高估或低估"的部分。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">无偏的条件</span>
+      <p>
+        只要重加权的权重正确，并且能拿到历史帧的目标函数，复用<b>不会引入偏置</b>。
+        ReSTIR 的基础估计量在设计上是无偏的。
+      </p>
+      <p>
+        这里说的是"基础估计量"。下面列出的实践做法会有意偏离这个条件。
+      </p>
+    </div>
+
+    <h3>实践中会有意引入偏置</h3>
+
+    <p>上面那条无偏性在实现里往往被主动放弃，用来换取更低的方差。</p>
+
+    <ul>
+      <li>
+        <b>给候选数封顶。</b>
+        时间复用会让候选数无限增长，陈旧样本因此获得过高的权重。
+        原始 ReSTIR 的做法是把上一帧的候选数截断到本帧的 20 倍以内。
+      </li>
+      <li>
+        <b>可见性复用。</b>原始 ReSTIR 论文包含这个有偏变体。
+        它在重采样之前，先对每个像素初始选中的样本求一次可见性。
+        被遮挡就整个丢弃该蓄水池，也就是把它的 <span class="fx v">W</span> 置为 0。
+      </li>
+    </ul>
+
+    <p>
+      第二条的偏置来源如下。
+      一个样本在某个像素被遮挡，在它的邻居处<b>可能是可见的</b>。
+      丢弃它，那部分能量在邻居处就丢失了。
+      论文的描述是：偏置在几何不连续处造成能量损失与画面压暗，
+      在阴影边界、锐利高光与复杂几何处最明显。
+    </p>
+
+    <p>
+      收益是噪声降低。被遮挡的样本不再向邻居传播，而在遮挡关系局部连续的前提下，
+      最终选出的样本大概率可见。
+      论文因此同时实现了有偏与无偏两个版本。
+    </p>
+
+    <p class="src">
+      来源：重加权因子与可见性复用见 Bitterli 等 2020，§3.2 与 Algorithm 4、5
+    </p>
+
+    <h3>一条实现约束</h3>
+
+    <p>
+      <b>不能根据邻居蓄水池里恰好存着哪个样本，来决定要不要复用这个邻居。</b>
+      那会让"选择"与"样本值"相关，直接引入偏置。
+    </p>
+
+    <p>
+      从这条限制可以得出一条实现要求：邻居的选择必须基于几何信息（位置、法线、深度），
+      不能基于样本本身。
+    </p>
+
+    <h3>另一个代价：样本不再独立</h3>
+
+    <p>
+      复用之后，相邻像素和相邻帧的样本在空间与时间上<b>变得相关</b>。
+      这不影响无偏性，但会影响降噪。
+    </p>
+
+    <p>
+      现代降噪器假设每个像素的噪声相互独立，并据此在邻域内平均掉噪声。
+      样本一旦相关，可供平均的独立信息就减少。
+      这是 ReSTIR 类方法的共同代价，第 12 章会再提到它。
+    </p>
+
+    <div class="selftest" data-id="rs-5">
+      <input type="checkbox" class="cb" id="cb-rs-5">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明偏置的来源、修正权重的构成，以及为什么实践中仍会主动引入偏置。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== 第二部分 · 应用 ==================== -->
+  <header class="part-head" id="part-2">
+    <span class="part-kicker">第二部分</span>
+    <h2>应用：DDGI Resampling</h2>
+    <p>
+      第一部分讲了重采样的机制。它不关心候选样本来自哪里，
+      只要求每个候选能算出一个目标函数 <span class="fx">p̂</span>。
+      这一部分说明 DDGI 探针为什么满足这个条件，以及需要做哪些修补。
+    </p>
+  </header>
+
+  <!-- ================= 06 ================= -->
+  <section class="ch" id="ch-6" data-chapter="06 · 探针为何能当作光源">
+    <div class="ch-head">
+      <span class="ch-num">第 06 章</span>
+      <h2>探针为何能当作光源</h2>
+    </div>
+
+    <p>
+      DDGI 讲义第 03 章已经说明：探针里存的是 irradiance，
+      也就是该点接收到的<b>间接漫反射</b>光。这一章换一个角度描述同一件事。
+    </p>
+
+    <p>
+      论文用算子记号把射出辐射写成四项之和：
+    </p>
+
+    <div class="math">
+      <span class="v">L</span> ≈
+      <span class="v">L</span><sub>e</sub> +
+      <span class="v">T</span><sub>f<sub>d</sub></sub><span class="v">L</span><sub>e</sub> +
+      <span class="v">L</span><sub>DDGI</sub> +
+      <span class="v">T</span><sub>f<sub>g</sub></sub><span class="v">L</span>
+    </div>
+
+    <p>四项分别是：</p>
+
+    <ul>
+      <li>
+        <span class="fx v">L</span><sub>e</sub>：光源自身射出的光。
+      </li>
+      <li>
+        <span class="fx v">T</span><sub>f<sub>d</sub></sub><span class="fx v">L</span><sub>e</sub>：
+        经过一次漫反射弹射的光，也就是直接光。
+      </li>
+      <li>
+        <span class="fx v">L</span><sub>DDGI</sub>：
+        探针提供的那一项。论文写作
+        <span class="fx v">L</span><sub>DDGI</sub> ≈
+        <span class="op">Σ</span><sub><span class="fx v">i</span>≥2</sub>
+        (<span class="fx v">T</span><sub>f<sub>d</sub></sub>)<sup><span class="fx v">i</span></sup><span class="fx v">L</span><sub>e</sub>，
+        即两次及以上的漫反射弹射。
+      </li>
+      <li>
+        <span class="fx v">T</span><sub>f<sub>g</sub></sub><span class="fx v">L</span>：
+        光泽与镜面反射。下标 g 表示 glossy。
+      </li>
+    </ul>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 274" role="img" aria-label="射出辐射被分成四段：自发光、一次漫反射、探针提供的多次漫反射、以及光泽反射。探针里只有第三段。把另外三段补回去，就恢复完整的传输算子。">
+<defs><marker id="ahE6" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<text class="s" x="24" y="46">射出辐射 L</text>
+<rect class="seg4" x="40" y="58" width="130" height="44" rx="2"/>
+<rect class="seg4" x="170" y="58" width="130" height="44" rx="2"/>
+<rect class="seg3" x="300" y="58" width="170" height="44" rx="2"/>
+<rect class="seg4" x="470" y="58" width="90" height="44" rx="2"/>
+<text class="s" x="105" y="85" text-anchor="middle">L<tspan baseline-shift="sub" font-size="8">e</tspan></text>
+<text class="s" x="235" y="85" text-anchor="middle">T<tspan baseline-shift="sub" font-size="8">fd</tspan> L<tspan baseline-shift="sub" font-size="8">e</tspan></text>
+<text class="t" x="385" y="85" text-anchor="middle">L<tspan baseline-shift="sub" font-size="8">DDGI</tspan></text>
+<text class="s" x="515" y="85" text-anchor="middle">T<tspan baseline-shift="sub" font-size="8">fg</tspan> L</text>
+<text class="s" x="105" y="120" text-anchor="middle">自发光</text>
+<text class="s" x="235" y="120" text-anchor="middle">一次漫反射</text>
+<text class="s" x="385" y="120" text-anchor="middle">≥2 次漫反射</text>
+<text class="s" x="515" y="120" text-anchor="middle">光泽</text>
+<path class="ray-f" d="M385,102 V140" marker-end="url(#ahE6)"/>
+<text class="t" x="385" y="158" text-anchor="middle">探针里只有这一段</text>
+<text class="s" x="336" y="186">另外三段探针里都没有：自发光、直接光、光泽</text>
+<rect class="res" x="60" y="204" width="480" height="56" rx="6"/>
+<text class="t" x="300" y="228" text-anchor="middle">L<tspan baseline-shift="sub" font-size="8">DDGI</tspan> + T<tspan baseline-shift="sub" font-size="8">fd</tspan> L<tspan baseline-shift="sub" font-size="8">e</tspan> + T<tspan baseline-shift="sub" font-size="8">fg</tspan> L ≈ T<tspan baseline-shift="sub" font-size="8">f</tspan> L</text>
+<text class="s" x="300" y="248" text-anchor="middle">补回缺失项之后，探针的值近似等于完整的传输算子</text>
+</svg>
+      </div>
+      <figcaption>
+        射出辐射的四个组成部分，以及探针覆盖的范围。
+        探针只提供 ≥2 次漫反射的那一段。
+        把自发光、直接光、光泽补回去之后，<b>探针的值加上该点的自发光，近似等于完整的入射辐射</b>。
+      </figcaption>
+    </figure>
+
+    <div class="note-box">
+      <span class="tag">方程 (3) 的含义</span>
+      <p>
+        论文原式为
+        <span class="fx">L<sub>DDGI</sub> + T<sub>f<sub>d</sub></sub>L<sub>e</sub> + T<sub>f<sub>g</sub></sub>L ≈
+        T<sub>f<sub>d</sub></sub>L + T<sub>f<sub>g</sub></sub>L = T<sub>f</sub>L</span>。
+      </p>
+      <p>
+        含义是：<b>探针的值加上缺失的几项，等于完整的传输算子</b>。
+        凡是能给出入射辐射的量，都可以当作光源来采样。
+      </p>
+      <p class="src">来源：Dynamic Diffuse Global Illumination Resampling, 方程 (2)、(3)</p>
+    </div>
+
+    <p>探针满足 RIS 对候选的全部要求：</p>
+
+    <ul>
+      <li>
+        可以在任意位置、任意方向求值，<b>不需要追光线</b>。
+      </li>
+      <li>
+        它的值可以直接参与目标函数
+        <span class="fx v">p̂</span> 的计算。
+      </li>
+    </ul>
+
+    <p>
+      在前一份讲义中，探针的作用是近似间接光。
+      在该论文中，探针还是一个<b>求值开销低的光源</b>。
+      探针的内容没有改变，改变的是用途。该论文的全部改动都源于这一点。
+    </p>
+
+    <div class="selftest" data-id="rs-6">
+      <input type="checkbox" class="cb" id="cb-rs-6">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能写出射出辐射的四项分解，并说明探针覆盖哪一项、缺哪三项。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 07 ================= -->
+  <section class="ch" id="ch-7" data-chapter="07 · 推迟一跳">
+    <div class="ch-head">
+      <span class="ch-num">第 07 章</span>
+      <h2>推迟一跳</h2>
+    </div>
+
+    <p>
+      接下来要确定<b>查询探针的位置</b>。
+    </p>
+
+    <p>DDGI 讲义的全部内容，对应的是"在主顶点查询"。</p>
+
+    <ul>
+      <li>
+        主顶点是相机主光线击中的那个点。
+      </li>
+      <li>
+        此时探针代表"相机看到的那个点收到的间接光"。
+      </li>
+      <li>
+        直接光需要另外计算，也就是用 ReSTIR 在主顶点做一遍。
+        两个独立的估计最后相加。
+      </li>
+    </ul>
+
+    <p>这个组合会同时暴露两种误差：</p>
+
+    <ul>
+      <li>
+        探针的偏置留在图像上。表现为漏光、丢失的间接接触阴影、平坦着色。
+      </li>
+      <li>
+        ReSTIR 的噪声也留在图像上。
+      </li>
+    </ul>
+
+    <p>
+      两种误差性质完全不同：一个是有偏的，一个是高方差的。
+      它们不能互相抵消。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 254" role="img" aria-label="左右对比。左侧在主顶点 x₁ 查询探针，探针代表该点收到的间接光。右侧把查询推迟到第二顶点 x₂，探针代表从 x₁ 看过去 x₂ 收到的总光照。">
+<defs><marker id="ahP7" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+<marker id="ahN7" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahN" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<path class="ray-f" d="M26,200 H286"/>
+<path class="ray-f" d="M314,200 H580"/>
+<path class="ghost" d="M300,20 V232"/>
+<rect class="box" x="30" y="178" width="32" height="24" rx="4"/>
+<path class="ray-i" d="M62,190 L214,200" marker-end="url(#ahN7)"/>
+<circle class="ghost" cx="218" cy="172" r="28"/>
+<circle class="probe" cx="218" cy="172" r="3.5"/>
+<circle class="dot" cx="218" cy="200" r="4.5"/>
+<text class="al" x="26" y="222">x₁ 主顶点</text>
+<text class="s" x="252" y="150">探针</text>
+<text class="t" x="30" y="42">在主顶点查询</text>
+<text class="s" x="30" y="62">探针 = 该点收到的间接光</text>
+<rect class="box" x="318" y="178" width="32" height="24" rx="4"/>
+<path class="ray-i" d="M350,190 L396,200" marker-end="url(#ahN7)"/>
+<path class="ray-d" d="M400,198 L528,124" marker-end="url(#ahP7)"/>
+<circle class="ghost" cx="530" cy="96" r="28"/>
+<circle class="probe" cx="530" cy="96" r="3.5"/>
+<circle class="dot" cx="400" cy="200" r="4.5"/>
+<circle class="dot" cx="530" cy="120" r="4.5"/>
+<text class="al" x="330" y="222">x₁</text>
+<text class="al" x="496" y="160">x₂ 第二顶点</text>
+<text class="s" x="500" y="60">探针</text>
+<text class="t" x="318" y="42">在第二顶点查询</text>
+<text class="s" x="318" y="62">探针 = 从 x₁ 看过去，x₂ 收到的总光照</text>
+</svg>
+      </div>
+      <figcaption>
+        两种查询位置。左侧的探针描述的是"相机看到的那个点收到了什么光"。
+        右侧的探针描述的是"从着色点朝某个方向看过去，那个表面收到了什么光"。
+        后者的含义更接近于"一个光源发出的光"。
+      </figcaption>
+    </figure>
+
+    <p>
+      该论文采用右侧的做法。改动的全部内容就是把查询位置推迟一跳。
+      论文结论部分的原文：
+    </p>
+
+    <blockquote>
+      <p>
+        … a small modification to the DDGI algorithm – querying the probe volume
+        at secondary path vertices rather than primary ones – unifies the two
+        approaches into an algorithm that performs much better than its
+        constituent parts. By querying DDGI at secondary vertices,
+        <b>it acts as a scene-spanning light source</b>, effectively turning the
+        global illumination problem into a much simpler direct illumination
+        problem, which ReSTIR can holistically attack.
+      </p>
+      <p class="src">来源：Dynamic Diffuse Global Illumination Resampling, §6</p>
+    </blockquote>
+
+    <h3>为什么偏置被藏起来了</h3>
+
+    <p>
+      探针的模糊和偏移是客观存在的，推迟一跳并没有消除它们。
+      改变的是它们出现的位置。
+    </p>
+
+    <ul>
+      <li>
+        在主顶点查询时，探针的值<b>就是</b>该像素的最终结果。它的误差直接可见。
+      </li>
+      <li>
+        在第二顶点查询时，探针的值只是那个顶点的入射光。
+        它还要经过一次散射，并与重采样混合，才变成最终像素值。
+        误差在这里被平均掉了一部分。
+      </li>
+    </ul>
+
+    <p>
+      论文用 Figure 3 展示这一差别。
+      在主顶点查询时，沙发下方有漏光，桌上花瓶与盘子的间接接触阴影不正确。
+      推迟一跳之后，这两处都不再出现。
+    </p>
+
+    <blockquote>
+      <p>
+        论文把这一做法类比为 photon mapping 中的 final gathering。
+        两者都把全局积分推迟到最后一跳，
+        用一次局部的求和代替完整的路径追踪。
+      </p>
+    </blockquote>
+
+    <div class="selftest" data-id="rs-7">
+      <input type="checkbox" class="cb" id="cb-rs-7">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能对比两种查询位置下探针的含义，并说明推迟一跳为何能减弱可见伪影。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 08 ================= -->
+  <section class="ch" id="ch-8" data-chapter="08 · 统一采样">
+    <div class="ch-head">
+      <span class="ch-num">第 08 章</span>
+      <h2>统一采样</h2>
+    </div>
+
+    <p>
+      把前两部分的机制合并，得到论文 §3.1 的算法。
+      它与标准 ReSTIR 的差别只有一处：候选不再只来自光源，而是来自<b>所有表面</b>。
+    </p>
+
+    <ol>
+      <li>
+        <b>在所有表面上生成候选。</b>
+        在自发光表面上均匀撒一小批点。
+        另外从着色点的 BSDF 采样方向、追次级光线，得到另一批候选点。
+      </li>
+      <li>
+        <b>重采样。</b>
+        先用加权蓄水池采样选出一个候选，再在空间上（相邻像素）与时间上（历史帧）重采样。
+        权重正比于 <span class="fx v">L</span><sub>e</sub> +
+        <span class="fx v">L</span><sub>DDGI</sub>。
+      </li>
+      <li>
+        <b>追一条阴影光线</b>，指向选中的样本。
+      </li>
+      <li>
+        <b>可见就着色。</b>
+        在选中点处取自发光
+        <span class="fx v">L</span><sub>e</sub>，
+        再加上探针的贡献
+        <span class="fx v">L</span><sub>DDGI</sub>。
+      </li>
+    </ol>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 196" role="img" aria-label="算法流程三个环节：在所有表面上生成候选，用蓄水池做空间与时间重采样，最后追一条阴影光线并着色。候选数量可以任意大，阴影光线始终只有一条。">
+<defs><marker id="ahA8" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahF" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="pool" x="22" y="40" width="154" height="80" rx="6"/>
+<text class="t" x="38" y="64">① 候选生成</text>
+<text class="s" x="38" y="86">自发光表面撒点</text>
+<text class="s" x="38" y="104">BSDF 方向 + 次级光线</text>
+<path class="flow" d="M176,80 H206" marker-end="url(#ahA8)"/>
+<rect class="res" x="206" y="40" width="176" height="80" rx="6"/>
+<text class="t" x="222" y="64">② 蓄水池</text>
+<text class="s" x="222" y="86">空间 + 时间复用</text>
+<text class="s" x="222" y="104">权重 ∝ L_e + L_DDGI</text>
+<path class="flow" d="M382,80 H412" marker-end="url(#ahA8)"/>
+<rect class="pool" x="412" y="40" width="166" height="80" rx="6"/>
+<text class="t" x="428" y="64">③ 一条阴影光线</text>
+<text class="s" x="428" y="86">可见则着色</text>
+<text class="s" x="428" y="104">L<tspan baseline-shift="sub" font-size="8">e</tspan> + L<tspan baseline-shift="sub" font-size="8">DDGI</tspan></text>
+<text class="al" x="22" y="156">候选的个数可以任意大。需要追光线的样本始终只有一个。</text>
+<text class="al" x="22" y="178">标准 ReSTIR 把候选限制在光源上。这里扩展到全部表面，因为探针在任意点都能求值。</text>
+</svg>
+      </div>
+      <figcaption>
+        算法主体。三个环节里只有第三步花光线预算。
+        论文原文：<i>As with original ReSTIR, our unified sampling scheme traces only
+        a single ray to the selected sample.</i>
+      </figcaption>
+    </figure>
+
+    <p>论文指出，这里有两级复用：</p>
+
+    <ul>
+      <li>
+        <b>屏幕空间</b>：ReSTIR 的蓄水池重采样。它同时服务直接光与间接光。
+      </li>
+      <li>
+        <b>世界空间</b>：探针本身。它已经是对间接光的时空聚合，
+        与屏幕上的像素是否相邻无关。
+      </li>
+    </ul>
+
+    <p>
+      第二级是纯 ReSTIR 方案所没有的部分。
+      探针把光照信息存在世界空间里，因此相机移动或物体出画时，这部分信息不会丢失。
+    </p>
+
+    <h3>与多重重要性采样的区别</h3>
+
+    <p>论文对此有一段对比：</p>
+
+    <blockquote>
+      <p>
+        In contrast to multiple importance sampling, this means that
+        <b>we draw a single sample approximately proportional to the total
+        transported light</b> rather than multiple samples that are heuristically
+        combined.
+      </p>
+      <p class="src">来源：Dynamic Diffuse Global Illumination Resampling, §2</p>
+    </blockquote>
+
+    <p>
+      常见做法是用 MIS 把直接光和间接光两个估计加权合并。
+      那需要先分别算出两个估计，再确定一个权重。
+      这里的做法是把两者放进同一个候选池，按总贡献统一挑一个。
+    </p>
+
+    <div class="selftest" data-id="rs-8">
+      <input type="checkbox" class="cb" id="cb-rs-8">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能复述算法的四个步骤，并说明两级复用分别发生在哪里。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 09 ================= -->
+  <section class="ch" id="ch-9" data-chapter="09 · 增广探针">
+    <div class="ch-head">
+      <span class="ch-num">第 09 章</span>
+      <h2>增广探针</h2>
+    </div>
+
+    <p>
+      第 06 章说"把缺失的项补回去"。这一章说明具体怎么补。论文分两步。
+    </p>
+
+    <h3>第一步：把直接光加进探针</h3>
+
+    <p>探针更新时把 <span class="fx v">L</span><sub>e</sub> 也累加进去：</p>
+
+    <div class="math">
+      <span class="v">E</span><sub>DDGI+</sub>(<span class="v">x</span>, <b>n</b>) ≈
+      <span class="op">∫</span>
+      (<span class="v">L</span><sub>DDGI+</sub> + <span class="v">L</span><sub>e</sub>)
+      (<span class="v">h</span>(<span class="v">x</span>, <span class="v">ω</span><sub>i</sub>),
+      −<span class="v">ω</span><sub>i</sub>)
+      ⟨<b>n</b>, <span class="v">ω</span><sub>i</sub>⟩
+      <span class="op">d</span><span class="v">ω</span><sub>i</sub>
+    </div>
+
+    <p>
+      其中 <span class="fx v">h</span> 是光线求交，
+      <span class="fx v">E</span><sub>DDGI+</sub> 中的加号表示这是增广版本。
+      <span class="fx v">L</span><sub>e</sub> 在这里不再经过漫反射交互。
+    </p>
+
+    <p>这一步引入一个新偏置。</p>
+
+    <p>
+      探针中心位于空间中的固定格点上，通常不在任何表面上。
+      如果探针中心比它着色的表面离光源更近，它记录到的
+      <span class="fx v">L</span><sub>e</sub> 就会偏大。
+      用这个值着色时，表面会收到过多的直接光。
+      这是探针类缓存共有的问题。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 232" role="img" aria-label="探针中心靠近光源，着色表面更远。记录 L_e 时，除了更新光线命中的距离，还要加上探针到着色表面的距离，再用总距离的平方反比衰减。">
+<defs><marker id="ahB9" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<circle class="lamp" cx="72" cy="56" r="8"/>
+<text class="al" x="52" y="36">光源</text>
+<path class="ray-d" d="M80,62 L192,126" marker-end="url(#ahB9)"/>
+<text class="s" x="124" y="76">① 更新光线命中的距离</text>
+<circle class="ghost" cx="202" cy="134" r="26"/>
+<circle class="probe" cx="202" cy="134" r="3.5"/>
+<text class="al" x="216" y="130">探针中心</text>
+<path class="ray-x" d="M202,160 L202,194"/>
+<text class="s" x="56" y="184">② 探针到表面的距离</text>
+<path class="ray-f" d="M56,194 H580"/>
+<path class="ray-f" d="M202,134 L396,194"/>
+<circle class="dot" cx="398" cy="194" r="4.5"/>
+<text class="al" x="378" y="216">着色点</text>
+<rect class="res" x="420" y="52" width="158" height="72" rx="6"/>
+<text class="s" x="436" y="76">用 ① + ② 之和</text>
+<text class="s" x="436" y="96">的平方反比衰减 L<tspan baseline-shift="sub" font-size="8">e</tspan></text>
+<text class="s" x="436" y="114">避免过亮</text>
+<text class="al" x="56" y="224">探针中心不在表面上，因此它记录到的 L<tspan baseline-shift="sub" font-size="8">e</tspan> 会偏大</text>
+</svg>
+      </div>
+      <figcaption>
+        探针中心偏置及其修正。修正所需的数据来自探针里已经算好的平均可见性，
+        也就是 DDGI 讲义第 08 章讲的距离图。
+        更新光线逐探针追踪，因此这一修正只多一次纹理读取。
+      </figcaption>
+    </figure>
+
+    <p>
+      修正办法是估算到表面的真实距离。
+      数据来自探针里已有的平均可见性。方向沿反方向，结果裁剪到探针边界之内。
+      把这个距离与更新光线的长度相加，
+      再用总距离的平方反比衰减 <span class="fx v">L</span><sub>e</sub>。
+    </p>
+
+    <p>
+      该启发式会<b>轻微低估</b>直接光。
+      因此论文留了一个用户可调的缩放滑块，按场景修正亮度。
+      论文明确说明，若不提供这个滑块，亮度差异本身会成为一处显著偏置。
+    </p>
+
+    <h3>第二步：把光泽加进来</h3>
+
+    <p>反射辐射被拆成漫反射与光泽两项：</p>
+
+    <div class="math">
+      <span class="v">L</span><sub>DDGI+</sub>(<span class="v">x</span>, <span class="v">ω</span><sub>o</sub>) =
+      <span class="frac">
+        <span class="n"><span class="v">ρ</span>(<span class="v">x</span>)</span>
+        <span class="d"><span class="v">π</span></span>
+      </span>
+      <span class="v">E</span><sub>DDGI+</sub>(<span class="v">x</span>, <b>n</b>)
+      &nbsp;+&nbsp;
+      <span class="frac">
+        <span class="n">1</span>
+        <span class="d">2<span class="v">π</span></span>
+      </span>
+      <span class="op">∫</span>
+      <span class="v">E</span><sub>DDGI+</sub>(<span class="v">x</span>, <span class="v">ω</span><sub>i</sub>)
+      <span class="v">f</span><sub>g</sub>(<span class="v">x</span>, <span class="v">ω</span><sub>o</sub>, <span class="v">ω</span><sub>i</sub>)
+      ⟨<b>n</b>, <span class="v">ω</span><sub>i</sub>⟩
+      <span class="op">d</span><span class="v">ω</span><sub>i</sub>
+    </div>
+
+    <p>
+      左项是漫反射，右项是光泽。
+      右项的积分用单个蒙特卡洛样本估计，样本按光泽 BSDF 分量
+      <span class="fx v">f</span><sub>g</sub> 抽取。
+    </p>
+
+    <p>
+      这是对 DDGI 原文一个技巧的推广。
+      原文的观察是：把 irradiance 的查询方向从法线
+      <b>n</b> 换成镜面反射方向 <span class="fx v">ω</span><sub>r</sub>，
+      得到的结果是经过余弦预滤波的入射辐射。
+      它相差一个 2π 的归一化因子。
+      原文只把这个技巧用于镜面。该论文把它推广到任意光泽 BSDF，例如 microfacet 模型。
+    </p>
+
+    <h3>光泽递归</h3>
+
+    <p>
+      只靠探针做镜面，结果仍然模糊。
+      原因是探针在角度上的分辨率有限，而镜面反射的细节是高频的。
+    </p>
+
+    <p>
+      论文的做法是：<b>对着色路径递归追下去，直到路径的散射足迹大到足以模糊掉探针的伪影为止。</b>
+      足迹估计采用 Müller 等人的方法，其基础是 Bekaert 等人的各向同性路径足迹近似。
+    </p>
+
+    <ul>
+      <li>
+        足迹由各顶点间距的平方除以该顶点的 BSDF 采样密度，累加之后再平方。
+      </li>
+      <li>
+        当足迹超过像素足迹的
+        <span class="fx v">c</span> 倍时终止递归，改用上式的光泽积分。
+        <span class="fx v">c</span> = 0.2 是经验阈值。
+      </li>
+      <li>
+        主顶点用完整的 BSDF 采样。
+        之后的顶点只用光泽分量
+        <span class="fx v">f</span><sub>g</sub>，因为一旦采到漫反射分量，就直接去查探针了。
+      </li>
+    </ul>
+
+    <p>
+      参数 <span class="fx v">c</span> = 0.2 是一次取舍：
+      阈值太大则镜面区域仍然模糊，阈值太小则递归过深、开销上升。
+    </p>
+
+    <div class="selftest" data-id="rs-9">
+      <input type="checkbox" class="cb" id="cb-rs-9">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明探针中心偏置的成因与修正办法，以及光泽递归的终止条件。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 10 ================= -->
+  <section class="ch" id="ch-10" data-chapter="10 · 三处工程修正">
+    <div class="ch-head">
+      <span class="ch-num">第 10 章</span>
+      <h2>三处工程修正</h2>
+    </div>
+
+    <p>
+      这一章的三节都来自论文。它们的共同点是：不做也能运行，但结果不正确。
+    </p>
+
+    <h3>一、自阴影偏置要换方向</h3>
+
+    <p>
+      DDGI 会在查询探针之前，先把查询点从表面偏移一段距离。
+      目的是避免在表面上直接计算可见性权重，因为那里的方差很高。
+      这个偏移叫 self-shadow bias，方向是视线方向与法线的加权组合。
+    </p>
+
+    <p>
+      在第二顶点做间接采样时，这个偏移会引起问题：
+      <b>它可能把查询点推进几何体内部。</b>
+      最容易发生在尖角处，因为那里视线点与查询点距离很短。结果是漏光。
+    </p>
+
+    <p>
+      改法是沿<b>路径方向</b>后退，也就是视线的反方向。
+      这个方向保证不会穿透表面，因为光线来自该方向，路径本身位于自由空间中。
+    </p>
+
+    <figure class="fig">
+      <div class="fig-scroll">
+<svg class="diagram lg" viewBox="0 0 600 232" role="img" aria-label="左侧原版自阴影偏置：方向是视线与法线的加权组合，箭头指向左侧的墙体内部。右侧沿路径后退：方向是视线的反方向，箭头留在自由空间中。">
+<defs><marker id="ahB10" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahA" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker>
+<marker id="ahN10" viewBox="0 0 8 8" refX="6.4" refY="4" markerWidth="5" markerHeight="5" orient="auto"><path class="ahN" d="M0.4,1 L7.2,4 L0.4,7 Z"/></marker></defs>
+<rect class="wall" x="26" y="74" width="56" height="108" rx="2"/>
+<path class="ray-f" d="M96,182 H288"/>
+<path class="ghost" d="M300,20 V214"/>
+<circle class="dot" cx="150" cy="182" r="4.5"/>
+<path class="ray-x" d="M150,182 L226,132" marker-end="url(#ahN10)"/>
+<path class="ray-x" d="M150,182 L150,116" marker-end="url(#ahN10)"/>
+<path class="ray-d" d="M150,182 L62,112" marker-end="url(#ahB10)"/>
+<text class="s" x="206" y="116">视线方向</text>
+<text class="s" x="156" y="132">法线</text>
+<text class="al" x="96" y="86">推进几何体</text>
+<text class="t" x="26" y="42">原版 self-shadow bias</text>
+<text class="s" x="26" y="62">方向 = 视线与法线的加权组合</text>
+<rect class="wall" x="322" y="74" width="56" height="108" rx="2"/>
+<path class="ray-f" d="M392,182 H580"/>
+<circle class="dot" cx="446" cy="182" r="4.5"/>
+<path class="ray-x" d="M446,182 L524,130" marker-end="url(#ahN10)"/>
+<path class="ray-d" d="M446,182 L524,130" marker-end="url(#ahB10)"/>
+<text class="s" x="482" y="122">沿路径后退</text>
+<text class="t" x="322" y="42">view path bias</text>
+<text class="s" x="322" y="62">方向 = 视线的反方向，不会穿墙</text>
+<text class="al" x="26" y="210">粗箭头是偏移方向。左侧的偏移进入了墙体，右侧的留在自由空间。</text>
+</svg>
+      </div>
+      <figcaption>
+        两种偏置方向。右侧的箭头与视线方向的虚线重合。
+        新做法不改变方向，只沿反方向后退。
+      </figcaption>
+    </figure>
+
+    <h3>二、几何项的弱奇点</h3>
+
+    <p>
+      时空重采样要在不同着色位置之间转移样本。
+      这个转移包含一次测度变换，几何项 1/<span class="fx v">r</span>² 是变换的一部分。
+    </p>
+
+    <p>
+      当样本非常靠近主顶点时，<span class="fx v">r</span> 趋近于 0，几何项发散。
+      重采样过程的方差因此无界。表现是几何凹陷处的孤立亮点，也就是 fireflies。
+    </p>
+
+    <p>
+      通常可以用多重重要性采样抑制这类问题。
+      此处不适用，因为"整个场景都是光源"，无法均匀采样所有相关表面。
+    </p>
+
+    <p>
+      论文改用 Kollig 与 Keller 的路径空间滤波：把几何项截断到上限
+      <span class="fx v">G</span><sub>max</sub> = 1，
+      并把传输拆成两部分。
+    </p>
+
+    <div class="math">
+      <span class="v">T</span><sub>f</sub> =
+      ⌈<span class="v">T</span><sub>f</sub>⌉ +
+      ⌊<span class="v">T</span><sub>f</sub>⌋
+    </div>
+
+    <ul>
+      <li>
+        ⌈<span class="fx v">T</span><sub>f</sub>⌉ 是几何项有界的那一部分，用时空蓄水池重采样估计。
+      </li>
+      <li>
+        ⌊<span class="fx v">T</span><sub>f</sub>⌋ 是残余传输，用一个辅助的 BSDF 样本估计。
+      </li>
+    </ul>
+
+    <p>于是最终的估计量是：</p>
+
+    <div class="math">
+      <span class="v">L</span> ≈
+      <span class="v">L</span><sub>e</sub> +
+      ⌈<span class="v">T</span><sub>f</sub>⌉(<span class="v">L</span><sub>e</sub> + <span class="v">L</span><sub>DDGI+</sub>) +
+      ⌊<span class="v">T</span><sub>f</sub>⌋(<span class="v">L</span><sub>e</sub> + <span class="v">L</span><sub>DDGI+</sub>)
+    </div>
+
+    <p>三项分别是：</p>
+
+    <ul>
+      <li>在主顶点求值的自发光。</li>
+      <li>由时空蓄水池重采样估计的有界几何项部分。</li>
+      <li>由 BSDF 重要性采样估计的残余传输部分。</li>
+    </ul>
+
+    <h3>三、缓存探针查询</h3>
+
+    <p>
+      重采样需要"每个候选对当前像素的贡献"。
+      若逐个求值，查询次数等于顶点数乘以候选数。
+      论文实现中的数字是每像素 1 个时间候选与 3 个空间候选。
+    </p>
+
+    <p>
+      优化办法是：直接用每个顶点自身着色时已经算出的值，
+      代替它相对其他顶点的贡献。这省掉了一个与候选数成正比的因子。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">这个近似的性质</span>
+      <p>
+        论文明确指出：该近似<b>不引入额外的偏置，只引入额外的噪声</b>。
+      </p>
+      <p>误差来自三个地方：</p>
+      <ul>
+        <li>场景与探针每帧都在变化。</li>
+        <li>着色的位置不同。</li>
+        <li>view path bias 依赖路径前缀。</li>
+      </ul>
+      <p>
+        在"局部像素邻域 + 近漫反射散射 + 短帧时间"这三个前提下，每一处误差都很小。
+      </p>
+    </div>
+
+    <p>
+      收益：MAPE 从 0.63 变为 0.64，渲染时间从 50.3 ms 降到 18.4 ms。
+    </p>
+
+    <div class="selftest" data-id="rs-10">
+      <input type="checkbox" class="cb" id="cb-rs-10">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明三处修正各自针对什么问题，以及查询缓存的近似代价是什么。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 11 ================= -->
+  <section class="ch" id="ch-11" data-chapter="11 · 结果">
+    <div class="ch-head">
+      <span class="ch-num">第 11 章</span>
+      <h2>结果</h2>
+    </div>
+
+    <p>
+      实现基于 Falcor 渲染框架，使用 Direct3D 12。
+      测试机器为 i7-6800K 加 RTX 3090，分辨率 1920×1080，采样率 <b>1 spp</b>。
+    </p>
+
+    <p>
+      全部待比较的方法都使用同一个无偏路径追踪器，直接光用 ReSTIR 估计。
+      五列分别是：
+    </p>
+
+    <ol>
+      <li><b>PT + ReSTIR</b>：基线。</li>
+      <li>
+        <b>Primary DDGI</b>：原始的 DDGI，在主顶点近似间接光。
+        这一列就是 DDGI 讲义讲的全部内容。
+      </li>
+      <li>
+        <b>Secondary DDGI</b>：增广后的 DDGI，在第二顶点近似全局光照。
+        近镜面路径递归追踪。
+      </li>
+      <li>
+        <b>+ DDGI in ReSTIR</b>：再把探针纳入重采样，并把漫反射的弱奇点单独采样。
+      </li>
+      <li><b>+ Denoising</b>：再加 OptiX 降噪。</li>
+    </ol>
+
+    <h3>定性结论</h3>
+
+    <ul>
+      <li>
+        <b>Primary DDGI 的开销最低、噪声最小</b>，但视觉伪影明显。
+        Greek Villa 出现平坦着色，Pink Room 缺少环境光遮蔽，Living Room 出现漏光。
+      </li>
+      <li>
+        <b>PT + ReSTIR 最准确</b>，但在全局光照场景中收敛太慢。
+      </li>
+      <li>
+        <b>Secondary DDGI 只引入很小的偏置</b>，
+        因为探针的误差要经过第一次散射之后才进入最终像素值。
+      </li>
+      <li>
+        再加降噪之后，最终质量超过原始 DDGI，代价平均为 1.5 至 2 倍。
+      </li>
+    </ul>
+
+    <h3>收敛速度</h3>
+
+    <p>
+      表 1 列出各方法收敛到相同 MAPE 所需的帧数与时间，数值为六个场景的平均。
+      MAPE 是平均绝对百分比误差，越低越好。
+    </p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>方法</th><th>帧数</th><th>时间</th><th>MAPE</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">PT + ReSTIR</td><td class="num">804.50</td><td class="num">17000.57 ms</td><td class="num">0.305</td></tr>
+          <tr><td class="mono">+ Secondary DDGI</td><td class="num">25.50</td><td class="num">237.77 ms</td><td class="num">0.306</td></tr>
+          <tr><td class="mono">+ DDGI Resampling</td><td class="num">1.33</td><td class="num">21.81 ms</td><td class="num">0.303</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      最后两行相差一个数量级。加上重采样之后，达到同样的误差只需要约 1 帧。
+      只把路径终止在探针中则需要约 25 帧。
+    </p>
+
+    <h3>成本拆分</h3>
+
+    <p>表 2 把渲染成本拆成三部分，同样是六个场景的平均。</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>方法</th><th>追踪与着色</th><th>重采样</th><th>探针更新</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">PT + ReSTIR</td><td class="num">26.37 ms</td><td class="num">1.09 ms</td><td class="num">—</td></tr>
+          <tr><td class="mono">+ Secondary DDGI</td><td class="num">7.40 ms</td><td class="num">1.35 ms</td><td class="num">0.96 ms</td></tr>
+          <tr><td class="mono">+ DDGI Resampling</td><td class="num">10.86 ms</td><td class="num">3.04 ms</td><td class="num">0.97 ms</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <ul>
+      <li>
+        <b>追踪成本下降。</b>把路径提前终止进探针，路径变短了。
+        26.37 ms 降到 7.40 ms，即使算上着色时的探针查询与每帧的探针显存更新。
+      </li>
+      <li>
+        <b>重采样的开销增加很少。</b>加入 DDGI 之后只增加约 1.7 ms，
+        因为查询被缓存了（第 10 章第三节）。
+      </li>
+      <li>
+        <b>剩下的开销在近镜面后缀。</b>
+        每条像素要追两次光线。一次用于 BSDF 样本，估计残余传输。另一次用于重采样选出的顶点。
+      </li>
+    </ul>
+
+    <p>
+      论文对总成本的表述是：合并后的算法比两个前作的开销都高约 60%。
+      该开销由更低的噪声与偏置补偿。论文还指出，它"达到相同误差的速度快一个数量级以上"。
+    </p>
+
+    <h3>一个失败案例</h3>
+
+    <p>
+      Living Room 场景中，外墙是大平面，从外面接收强阳光。
+      在这种几何下，第二顶点查询也无法掩盖探针的漏光。
+      而且此时 BSDF 重要性采样的表现略优于重采样。
+    </p>
+
+    <p>
+      论文把该案例列为需要继续改进的地方：
+      在几何更薄的场景中，重采样的候选生成策略仍需改进。
+    </p>
+
+    <div class="selftest" data-id="rs-11">
+      <input type="checkbox" class="cb" id="cb-rs-11">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能说明成本拆分中每一项的变化方向，以及失败案例为什么失败。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 12 ================= -->
+  <section class="ch" id="ch-12" data-chapter="12 · 局限与后续">
+    <div class="ch-head">
+      <span class="ch-num">第 12 章</span>
+      <h2>局限与后续</h2>
+    </div>
+
+    <p>
+      论文指出，这些局限大部分继承自两个组成部分。
+    </p>
+
+    <h3>来自 ReSTIR 的局限</h3>
+
+    <ul>
+      <li>
+        <b>屏幕空间技术。</b>复用能力高度依赖运动矢量、缓慢的相机运动、以及不透明物体。
+      </li>
+      <li>
+        <b>样本变得时空相关。</b>重采样之后，可供降噪器使用的独立信息总量减少。
+        论文原话是：<i>Effective denoising in the presence of ReSTIR samples is
+        still ongoing work.</i>
+      </li>
+    </ul>
+
+    <h3>来自 DDGI 的局限</h3>
+
+    <ul>
+      <li>
+        <b>网格化。</b>探针网格在大场景中不容易扩展，因为相机可能只关注其中一小块区域。
+      </li>
+      <li>
+        <b>无法解析细粒度的空域方向细节。</b>
+        包括复杂的焦散、阴影、环境光遮蔽、近镜面反射。
+      </li>
+    </ul>
+
+    <p>
+      第二类局限在"第一次散射足够漫反射之后"查询时会被部分掩盖。
+      要更好的质量，需要换用更精确的缓存。
+    </p>
+
+    <h3>两个失败的替代方案</h3>
+
+    <p>
+      论文的讨论一节记录了两条试过但不划算的路。
+      这两个方案标出了该方法的适用范围。
+    </p>
+
+    <ul>
+      <li>
+        <b>把 DDGI 当控制变量。</b>
+        做法是用原版 DDGI 的无噪声结果降低重采样估计的方差。
+        实测在 1 spp 下反而引入了可见的漏光，噪声改善也不明显。
+      </li>
+      <li>
+        <b>用探针做路径引导。</b>
+        做法是从探针更新光线的结果构建累积分布函数，用来指导采样方向。
+        问题是探针本身每帧都在更新，构建分布的开销抵消了收益。
+      </li>
+    </ul>
+
+    <h3>后续脉络</h3>
+
+    <ul>
+      <li>
+        <b>ReSTIR GI</b>（Ouyang 等，2021）。
+        论文中提到的同期工作。它把重采样扩展到间接弹射，不依赖缓存。
+        偏置更低，但没有世界空间的复用，也没有路径的提前终止。
+      </li>
+      <li>
+        <b>广义重采样重要性采样 / ReSTIR PT</b>（Lin、Kettunen 等，2022）。
+        把 RIS 推广到整条路径，让路径级别的复用也能保持无偏。
+      </li>
+      <li>
+        <b>RTXDI</b>（NVIDIA）。
+        ReSTIR 直接光照部分的产品化实现。
+      </li>
+    </ul>
+
+    <div class="note-box">
+      <span class="tag">与 DDGI 讲义的关系</span>
+      <p>
+        该论文<b>不修改探针结构</b>。
+        八面体映射、Chebyshev 可见性、探针网格插值、时间累积与 relocation 都不变。
+      </p>
+      <p>
+        它的改动只有两处：查询探针发生在路径的哪一跳，以及查询结果如何补全。
+        因此 DDGI 讲义第 03 至 09 章的内容是该论文的前置条件。
+      </p>
+    </div>
+
+    <div class="selftest" data-id="rs-12">
+      <input type="checkbox" class="cb" id="cb-rs-12">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能分别说出继承自 ReSTIR 与继承自 DDGI 的局限，以及论文记录的两个失败方向。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 13 ================= -->
+  <section class="ch" id="ch-13" data-chapter="13 · 概念对照与常见误区">
+    <div class="ch-head">
+      <span class="ch-num">第 13 章</span>
+      <h2>概念对照与常见误区</h2>
+    </div>
+
+    <h3>术语对照</h3>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>术语</th><th>含义</th><th>出处</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="mono">候选</td><td>送入蓄水池的样本</td><td>第 01 章</td></tr>
+          <tr><td class="mono">蓄水池</td><td>存三项内容：选中的样本、权重和 W、候选数 M</td><td>第 01、04 章</td></tr>
+          <tr><td class="mono">目标函数 p̂</td><td>决定挑选概率的函数，不含可见性</td><td>第 02、03 章</td></tr>
+          <tr><td class="mono">可见性 V</td><td>取值为 0 或 1，需要一条阴影光线</td><td>第 03 章</td></tr>
+          <tr><td class="mono">主顶点</td><td>相机主光线击中的点</td><td>第 07 章</td></tr>
+          <tr><td class="mono">第二顶点</td><td>主顶点再弹射一次击中的点</td><td>第 07 章</td></tr>
+          <tr><td class="mono">Primary DDGI</td><td>在主顶点查询探针。即 DDGI 讲义的全部内容</td><td>第 07 章</td></tr>
+          <tr><td class="mono">Secondary DDGI</td><td>在第二顶点查询探针，本文的做法</td><td>第 07 章</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>常见误区</h3>
+
+    <ul class="pitfalls">
+      <li>
+        <span>
+          <b>ReSTIR 不是降噪器。</b>
+          它不模糊图像，也不对像素做滤波。它改变的是"追哪一条光线"这个决定。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>ReSTIR 不是"复用随机数"。</b>
+          直接复用邻居的样本会引入偏置。它有一套修正权重来保证无偏。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>候选数与光线数是两件事。</b>
+          有效候选数可以达到数百，而每帧需要追的光线数不随候选数增长。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>DDGI Resampling 不修改探针。</b>
+          探针的存储格式、更新方式、可见性判断全部沿用原版。
+          改动只在查询位置与补全项上。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>论文里的 Primary DDGI 就是 DDGI 讲义讲的那个 DDGI。</b>
+          它在论文中是基线，论文指出它存在漏光与平坦着色。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>无偏不等于可用。</b>
+          第 00 章的均匀采样是无偏的，但单帧误差极大。
+          估计量的价值要看方差，不能只看期望。
+        </span>
+      </li>
+      <li>
+        <span>
+          <b>这套方法解决的是低频多次散射。</b>
+          论文第一句就限定在高方差的情形：多次粗糙光泽或漫反射散射。
+          对镜面与近镜面传输，递归追踪仍然是更好的选择。
+        </span>
+      </li>
+    </ul>
+
+    <p>
+      两份讲义的分工如下。
+      DDGI 讲义回答"探针里存什么、怎么求、怎么用"。
+      本讲义回答"在路径的哪一点查询探针，以及查询结果如何与直接光合并"。
+      两者的连接点是第 06 章的方程 (3)。
+    </p>
+
+    <p>
+      第 06 章的四项分解如果读起来有困难，说明 DDGI 讲义第 03 至 09 章还需要再过一遍。
+      返回链接在页面顶部。
+    </p>
+
+    <div class="selftest" data-id="rs-13">
+      <input type="checkbox" class="cb" id="cb-rs-13">
+      <div>
+        <span class="st-label">自测</span>
+        <p class="st-q">能指出至少三条常见误区，并说明两份讲义各自负责回答什么问题。</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    拓展篇。第一部分依据 Bitterli, Wyman, Pharr, Shirley, Lefohn, Jarosz,
+    <i>Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting</i>,
+    ACM TOG 39(4), 2020<br>
+    第二部分依据 Majercik, Müller, Keller, Nowrouzezahrai, McGuire,
+    <i>Dynamic Diffuse Global Illumination Resampling</i>,
+    Computer Graphics Forum 41(1), 2022（arXiv:2108.05263v1）<br>
+    两份原文分别位于 <code>docs/ReSTIR.pdf</code> 与 <code>docs/2108.05263v1.pdf</code><br>
+    勾选进度保存在当前浏览器，与 DDGI 讲义的进度互相独立
+  </footer>
+
+  <p class="sr" id="live" aria-live="polite"></p>
+</div>
+
+<script>
+(function () {
+  var KEY = 'restir-study-progress-v1';
+
+  var store = null;
+  try {
+    localStorage.setItem('__t', '1');
+    localStorage.removeItem('__t');
+    store = localStorage;
+  } catch (e) { store = null; }
+
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.cb'));
+  var rows = boxes.map(function (b) { return b.closest('.selftest'); });
+
+  var doneCount = document.getElementById('doneCount');
+  var totalCount = document.getElementById('totalCount');
+  var pctEl = document.getElementById('pct');
+  var fill = document.getElementById('fill');
+  var pbar = document.getElementById('pbar');
+  var hint = document.getElementById('hint');
+  var live = document.getElementById('live');
+  var curCh = document.getElementById('curCh');
+  var filterBtn = document.getElementById('filterBtn');
+  var resetBtn = document.getElementById('resetBtn');
+
+  var onlyOpen = false;
+  var saveWarned = false;
+
+  var saved = {};
+  if (store) {
+    try { saved = JSON.parse(store.getItem(KEY)) || {}; } catch (e) { saved = {}; }
+  }
+  boxes.forEach(function (b, i) {
+    var id = rows[i].getAttribute('data-id');
+    if (id && saved[id]) b.checked = true;
+  });
+
+  function persist() {
+    var state = {};
+    boxes.forEach(function (b, i) {
+      var id = rows[i].getAttribute('data-id');
+      if (id && b.checked) state[id] = 1;
+    });
+    if (store) {
+      try { store.setItem(KEY, JSON.stringify(state)); } catch (e) { store = null; }
+    }
+    if (!store && !saveWarned) {
+      saveWarned = true;
+      hint.textContent = '此环境无法保存进度';
+    }
+  }
+
+  function render(announce) {
+    var done = 0;
+    boxes.forEach(function (b, i) {
+      rows[i].classList.toggle('is-done', b.checked);
+      if (b.checked) done++;
+    });
+    var total = boxes.length;
+    var pct = total ? Math.round((done / total) * 100) : 0;
+    doneCount.textContent = done;
+    totalCount.textContent = total;
+    pctEl.textContent = pct + '%';
+    fill.style.width = pct + '%';
+    pbar.setAttribute('aria-valuenow', String(pct));
+    if (announce) live.textContent = '已完成 ' + done + ' / ' + total + '，' + pct + '%';
+  }
+
+  rows.forEach(function (row, i) {
+    row.addEventListener('click', function (e) {
+      if (e.target === boxes[i] || (e.target.closest && e.target.closest('label'))) return;
+      var sel = window.getSelection && window.getSelection();
+      if (sel && String(sel) !== '') return;
+      boxes[i].checked = !boxes[i].checked;
+      boxes[i].dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
+
+  boxes.forEach(function (b, i) {
+    b.addEventListener('change', function () {
+      persist();
+      rows[i].hidden = onlyOpen && b.checked;
+      render(true);
+    });
+  });
+
+  filterBtn.addEventListener('click', function () {
+    onlyOpen = !onlyOpen;
+    filterBtn.setAttribute('aria-pressed', onlyOpen ? 'true' : 'false');
+    filterBtn.textContent = onlyOpen ? '显示全部' : '只看未完成';
+    rows.forEach(function (el) {
+      el.hidden = onlyOpen && el.classList.contains('is-done');
+    });
+  });
+
+  var armed = false, armTimer = null;
+  function disarm() {
+    armed = false;
+    clearTimeout(armTimer);
+    resetBtn.removeAttribute('data-armed');
+    resetBtn.textContent = '重置进度';
+    if (hint.textContent.indexOf('将清除') === 0) hint.textContent = '';
+  }
+  resetBtn.addEventListener('click', function () {
+    if (!armed) {
+      armed = true;
+      resetBtn.setAttribute('data-armed', 'true');
+      resetBtn.textContent = '再次点击以确认';
+      hint.textContent = '将清除全部 ' + boxes.length + ' 条记录';
+      armTimer = setTimeout(disarm, 5000);
+      return;
+    }
+    disarm();
+    boxes.forEach(function (b) { b.checked = false; });
+    persist();
+    rows.forEach(function (el) { el.hidden = false; });
+    render(true);
+    hint.textContent = '进度已重置';
+  });
+
+  var side = document.getElementById('side');
+  var sideLinks = side ? Array.prototype.slice.call(side.querySelectorAll('a')) : [];
+
+  function markCurrent(id, label) {
+    curCh.textContent = label;
+    if (!sideLinks.length) return;
+    sideLinks.forEach(function (a) {
+      a.classList.toggle('is-cur', a.getAttribute('href') === '#' + id);
+    });
+    var cur = side.querySelector('a.is-cur');
+    if (!cur) return;
+    var r = cur.getBoundingClientRect();
+    var sr = side.getBoundingClientRect();
+    if (r.top < sr.top + 8) side.scrollTop -= (sr.top + 8 - r.top);
+    else if (r.bottom > sr.bottom - 8) side.scrollTop += (r.bottom - sr.bottom + 8);
+  }
+
+  var chapters = Array.prototype.slice.call(document.querySelectorAll('[data-chapter]'));
+  if ('IntersectionObserver' in window && chapters.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) markCurrent(en.target.id, en.target.getAttribute('data-chapter'));
+      });
+    }, { rootMargin: '0px 0px -88% 0px', threshold: 0 });
+    chapters.forEach(function (c) { io.observe(c); });
+  }
+
+  totalCount.textContent = boxes.length;
+  render(false);
+})();
+</script>

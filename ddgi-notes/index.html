@@ -422,6 +422,50 @@ footer {
   .math { font-size: 1.06em; padding-inline: 4px; }
   .selftest { padding-inline: 13px; }
 }
+
+/* ---------- 侧边章节索引 ---------- */
+.side { display: none; }
+
+@media (min-width: 1240px) {
+  .side {
+    display: block;
+    position: fixed;
+    top: 66px;
+    left: calc((100vw - 740px) / 2 - 234px);
+    width: 214px;
+    max-height: calc(100vh - 92px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    padding-block: 2px 24px;
+  }
+  nav.toc { display: none; }
+}
+
+.side-part {
+  font-family: var(--font-mono); font-size: 10px; font-weight: 600;
+  letter-spacing: .015em; color: var(--accent);
+  margin: 0 0 6px; padding-inline-start: 9px; line-height: 1.4;
+}
+.side ul { list-style: none; margin: 0 0 18px; padding: 0; }
+.side ul:last-child { margin-bottom: 0; }
+.side li { margin: 0; }
+.side a {
+  display: flex; gap: 7px; align-items: baseline;
+  padding: 3.5px 9px; border-radius: 5px;
+  text-decoration: none; color: var(--ink-soft);
+  font-size: 12.5px; line-height: 1.42;
+  transition: color .13s, background .13s;
+}
+.side a:hover { color: var(--ink); background: var(--surface); }
+.side a:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.side a .sn {
+  font-family: var(--font-mono); font-size: 10px; color: var(--ink-faint);
+  flex: none; font-variant-numeric: tabular-nums; padding-top: 1px;
+}
+.side a.is-cur { color: var(--ink); background: var(--accent-wash); font-weight: 600; }
+.side a.is-cur .sn { color: var(--accent); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .side a { transition: none; } }
 </style>
 
 <div class="bar">
@@ -437,6 +481,32 @@ footer {
     <span class="sr" id="pbar-label">学习进度</span>
   </div>
 </div>
+
+<nav class="side" id="side" aria-label="章节索引">
+  <p class="side-part">第一部分 · 理论</p>
+  <ul>
+    <li><a href="#ch-0"><span class="sn">00</span><span>间接光照</span></a></li>
+    <li><a href="#ch-1"><span class="sn">01</span><span>路径追踪的开销</span></a></li>
+    <li><a href="#ch-2"><span class="sn">02</span><span>间接光的低频性质</span></a></li>
+    <li><a href="#ch-3"><span class="sn">03</span><span>采样点存储的内容</span></a></li>
+    <li><a href="#ch-4"><span class="sn">04</span><span>探针数据的获取</span></a></li>
+    <li><a href="#ch-5"><span class="sn">05</span><span>球面参数化：八面体映射</span></a></li>
+    <li><a href="#ch-6"><span class="sn">06</span><span>探针网格与插值</span></a></li>
+    <li><a href="#ch-7"><span class="sn">07</span><span>漏光问题</span></a></li>
+    <li><a href="#ch-8"><span class="sn">08</span><span>距离图与遮挡判断</span></a></li>
+    <li><a href="#ch-9"><span class="sn">09</span><span>遮挡权重：Chebyshev 不等式</span></a></li>
+  </ul>
+  <p class="side-part">第二部分 · 工程</p>
+  <ul>
+    <li><a href="#ch-10"><span class="sn">10</span><span>显存组织与 UV 换算</span></a></li>
+    <li><a href="#ch-11"><span class="sn">11</span><span>时间累积</span></a></li>
+    <li><a href="#ch-12"><span class="sn">12</span><span>完整流程</span></a></li>
+    <li><a href="#ch-13"><span class="sn">13</span><span>三项工程优化</span></a></li>
+    <li><a href="#ch-14"><span class="sn">14</span><span>仓库文档的阅读顺序</span></a></li>
+    <li><a href="#ch-15"><span class="sn">15</span><span>实验</span></a></li>
+    <li><a href="#ch-16"><span class="sn">16</span><span>拓展阅读</span></a></li>
+  </ul>
+</nav>
 
 <div class="wrap main">
 
@@ -473,7 +543,7 @@ footer {
       <li><a href="#ch-13"><span class="n">13</span><span>三项工程优化</span></a></li>
       <li><a href="#ch-14"><span class="n">14</span><span>仓库文档的阅读顺序</span></a></li>
       <li><a href="#ch-15"><span class="n">15</span><span>实验</span></a></li>
-      <li><a href="#ch-16"><span class="n">16</span><span>常见误区</span></a></li>
+      <li><a href="#ch-16"><span class="n">16</span><span>拓展阅读</span></a></li>
     </ul>
   </nav>
 
@@ -873,7 +943,7 @@ footer {
     <h4>经纬度网格为何不可用</h4>
 
     <p>
-      最自然的做法是按极角与方位角各取等分，即经纬度网格。但角度等分不等于面积等分。
+      直接的做法是按极角与方位角各取等分，即经纬度网格。但角度等分不等于面积等分。
       极角接近 0 或 π 时，相同的方位角间隔对应的球面弧长按 sin&thinsp;θ 收缩，
       点于是向两极堆积。
     </p>
@@ -2138,7 +2208,7 @@ footer {
     </p>
 
     <div class="note-box">
-      <span class="tag">职责边界</span>
+      <span class="tag">光线追踪由谁完成</span>
       <p>
         光线追踪本身不由 DDGI SDK 实现。SDK 只规定从哪个探针、沿哪些方向投射光线。
         实际的光线求交与命中着色由宿主渲染器使用其自身的加速结构与着色器完成。
@@ -4246,70 +4316,122 @@ return false;</pre>
   </section>
 
   <!-- ================= 16 ================= -->
-  <section class="ch" id="ch-16" data-chapter="16 · 常见误区">
+  <section class="ch" id="ch-16" data-chapter="16 · 拓展阅读">
     <div class="ch-head">
       <span class="ch-num">第 16 章</span>
-      <h2>常见误区</h2>
+      <h2>拓展阅读</h2>
     </div>
 
-    <ul class="pitfalls">
+    <p>
+      本讲义前面的内容覆盖 DDGI 本身。这一章列出可以继续阅读的材料。
+    </p>
+
+    <h3>DDGI Resampling</h3>
+
+    <p>
+      DDGI 的后续工作是 Majercik 等人 2022 年的
+      <i>Dynamic Diffuse Global Illumination Resampling</i>。
+      两篇论文的第一作者相同。
+    </p>
+
+    <p>
+      该论文不修改探针的数据结构。八面体映射、Chebyshev 可见性、探针网格插值、
+      时间累积与 relocation 都沿用本讲义第 05 至 13 章的内容。改动有两处：
+    </p>
+
+    <ul>
       <li>
-        <span>
-          <b><code>majercik21dynamic.pdf</code> 不是 DDGI 的原始论文。</b>
-          其标题为 <i>Dynamic Diffuse Global Illumination Resampling</i>，
-          发表于 2021 年，内容建立在 DDGI 之上。应先行阅读
-          <code>Majercik2019Irradiance.pdf</code>。
-        </span>
+        <b>查询探针的位置。</b>
+        查询点从主顶点改为第二顶点。探针记录的内容随之改变，
+        由"该点接收的间接光"变为"从着色点朝某个方向看到的表面所接收的光"。
       </li>
       <li>
-        <span>
-          <b><code>docs/2007.14394v1.pdf</code> 不是 DDGI 相关论文。</b>
-          该文为 <i>Signed Distance Fields Dynamic Diffuse Global Illumination</i>，
-          将 RTXGI 作为对比基线，属于第三方工作。
-        </span>
-      </li>
-      <li>
-        <span>
-          <b><code>ue4-plugin/</code> 目录可以跳过。</b>
-          该目录为引擎集成代码，与算法理解无关。
-        </span>
-      </li>
-      <li>
-        <span>
-          <b><code>DDGIVolume_D3D12.cpp</code>（1778 行）不含算法。</b>
-          该文件是图形 API 的管线与资源管理代码。
-          算法实现位于 <code>rtxgi-sdk/shaders/ddgi/</code>，
-          其中承载核心逻辑的是 <code>Irradiance.hlsl</code> 与
-          <code>ProbeBlendingCS.hlsl</code>。
-        </span>
-      </li>
-      <li>
-        <span>
-          <b>「八面体映射的畸变小于 Cube map」这一说法不成立。</b>
-          两者的面积畸变比值均为 3√3，详见第 05 章。
-        </span>
-      </li>
-      <li>
-        <span>
-          <b>遇到与推导不符的常数时，先查阅注释。</b>
-          该代码库中多处为减少 GPU 分支而牺牲可读性，
-          例如 <code>Irradiance.hlsl:138</code> 中距离值的 <code>2.f *</code>。
-        </span>
+        <b>查询结果的使用方式。</b>
+        探针被当作一个覆盖全场景的光源，与真实光源一起送入重采样。
       </li>
     </ul>
 
-    <div class="selftest" data-id="st-22">
-      <input type="checkbox" class="cb" id="cb-st-22">
+    <p>
+      论文把本讲义讲的做法称为 "Primary DDGI"。该方法在论文中与其余四种方法一并比较。
+    </p>
+
+    <p>
+      拓展篇《<a href="restir.html">ReSTIR 与 DDGI Resampling</a>》讲解这篇论文，
+      以及论文所用的重采样机制。该机制出自 Bitterli 等人 2020 年的 ReSTIR。
+      拓展篇的第一部分只讲重采样，与探针无关，可以单独阅读。
+    </p>
+
+    <div class="note-box">
+      <span class="tag">阅读前提</span>
+      <p>
+        拓展篇第 06 章用到本讲义第 03 章的结论：探针只记录两次及以上漫反射的能量，
+        不含自发光、直接光与光泽。
+      </p>
+      <p>
+        拓展篇第 08 章用到本讲义第 06 至 09 章的内容：探针网格、插值与可见性判断。
+      </p>
+      <p>本讲义第 03 至 09 章尚未读完时，先读本讲义。</p>
+    </div>
+
+    <h3><code>docs/</code> 目录中的其他论文</h3>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>文件</th><th>标题与出处</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="mono">2108.05263v1.pdf</td>
+            <td><i>Dynamic Diffuse Global Illumination Resampling</i><br>Majercik 等，CGF 41(1), 2022</td>
+            <td>DDGI 的后续工作。见<a href="restir.html">拓展篇</a>第二部分。</td>
+          </tr>
+          <tr>
+            <td class="mono">ReSTIR.pdf</td>
+            <td><i>Spatiotemporal reservoir resampling for real-time ray tracing with dynamic direct lighting</i><br>Bitterli 等，TOG 39(4), 2020</td>
+            <td>重采样机制的出处。见<a href="restir.html">拓展篇</a>第一部分。</td>
+          </tr>
+          <tr>
+            <td class="mono">2007.14394v1.pdf</td>
+            <td><i>Signed Distance Fields Dynamic Diffuse Global Illumination</i><br>Hu 等，arXiv 2020</td>
+            <td>第三方工作。用有符号距离场代替探针网格，文中把 RTXGI 作为对比基线。</td>
+          </tr>
+          <tr>
+            <td class="mono">654238435.pdf</td>
+            <td><i>Dynamic Voxel-Based Global Illumination</i><br>Cosin Ayerbe 等，CGF 44(1), 2025</td>
+            <td>第三方工作。体素化的单次漫反射弹射方案，与基于探针网格的做法是两种选择。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>建议的顺序</h3>
+
+    <ol>
+      <li>读本讲义的 00 至 09 章。理论部分是后面内容的前提。</li>
+      <li>读本讲义的 10 至 13 章，了解理论在 GPU 上的实现代价。</li>
+      <li>读拓展篇的 00 至 05 章。这部分只讲重采样，与探针无关。</li>
+      <li>读拓展篇的 06 至 13 章。这时两份讲义的内容会衔接。</li>
+      <li>最后对照 <code>docs/ReSTIR.pdf</code> 与 <code>docs/2108.05263v1.pdf</code> 核对细节。</li>
+    </ol>
+
+    <p>
+      第 14 章给出的仓库文档阅读顺序与这条路线不冲突，可以同时进行。
+    </p>
+
+    <div class="selftest" data-id="st-23">
+      <input type="checkbox" class="cb" id="cb-st-23">
       <div>
         <span class="st-label">自测</span>
-        <p class="st-q">能指出版本与文档定位上的常见误判，并知道常数异常时先查注释。</p>
+        <p class="st-q">能说明 DDGI Resampling 改动的是哪两处。能说出 <code>docs/</code> 中四篇论文各自的内容。</p>
       </div>
     </div>
   </section>
 
   <footer>
     基于本地仓库 RTXGI SDK v1.3（分支 main）<br>
-    文中标注来源的数值取自仓库源码与文档；第 05 章的面积畸变数据为作者计算<br>
+    文中标注来源的数值取自仓库源码与文档。第 05 章的面积畸变数据为作者计算<br>
+    第 16 章指向拓展篇《ReSTIR 与 DDGI Resampling》，进度与本文各自独立<br>
     勾选进度保存在当前浏览器，更换设备或清除浏览器数据后丢失
   </footer>
 
@@ -4436,11 +4558,28 @@ return false;</pre>
     hint.textContent = '进度已重置';
   });
 
+  var side = document.getElementById('side');
+  var sideLinks = side ? Array.prototype.slice.call(side.querySelectorAll('a')) : [];
+
+  function markCurrent(id, label) {
+    curCh.textContent = label;
+    if (!sideLinks.length) return;
+    sideLinks.forEach(function (a) {
+      a.classList.toggle('is-cur', a.getAttribute('href') === '#' + id);
+    });
+    var cur = side.querySelector('a.is-cur');
+    if (!cur) return;
+    var r = cur.getBoundingClientRect();
+    var sr = side.getBoundingClientRect();
+    if (r.top < sr.top + 8) side.scrollTop -= (sr.top + 8 - r.top);
+    else if (r.bottom > sr.bottom - 8) side.scrollTop += (r.bottom - sr.bottom + 8);
+  }
+
   var chapters = Array.prototype.slice.call(document.querySelectorAll('[data-chapter]'));
   if ('IntersectionObserver' in window && chapters.length) {
     var io = new IntersectionObserver(function (entries) {
       entries.forEach(function (en) {
-        if (en.isIntersecting) curCh.textContent = en.target.getAttribute('data-chapter');
+        if (en.isIntersecting) markCurrent(en.target.id, en.target.getAttribute('data-chapter'));
       });
     }, { rootMargin: '0px 0px -88% 0px', threshold: 0 });
     chapters.forEach(function (c) { io.observe(c); });
